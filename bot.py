@@ -1,5 +1,6 @@
 import datetime
 import os
+import time
 import tempfile
 import requests
 from math import log, floor
@@ -19,6 +20,37 @@ import db_management
 app = Client("qbittorrent_bot", api_id=API_ID, api_hash=API_HASH, bot_token=TG_TOKEN)
 spammer = checkTorrents(app)
 spammer.start()
+
+ngrok_api_url = ["http://127.0.0.1:4040/api/tunnels", "http://127.0.0.1:4050/api/tunnels"]
+def get_ngrok_info():
+    max_retry = 10
+    retry_count = 0
+    sleep_sec = 60
+    status_count = 0
+    msg = ""
+    while status_count != 2 and retry_count <= max_retry:
+        for url in ngrok_api_url:
+            print(f'fetching ngrok tunnel info: {url}')
+            try:
+                response = requests.get(url, headers={'Content-Type': 'application/json'})
+            except (ConnectionError, HTTPError):
+                print(f'failed to connect: {url}')
+            else:
+                if response.status_code == 200:
+                    status_count += 1
+                    tunnels = response.json()["tunnels"]
+                    for tunnel in tunnels:
+                        msg += f'🚀 <b>Name:</b> <code>{tunnel["name"]}</code>\n'
+                        msg += f'⚡ <b>URL:</b> {tunnel["public_url"]}\n\n'
+                response.close()
+        if status_count == 2:
+            break
+        retry_count += 1
+        time.sleep(sleep_sec)
+    for user_id in AUTHORIZED_IDS:
+        app.send_message(user_id, msg, parse_mode="html")
+    if retry_count > max_retry:
+        print("failed to get ngrok info on startup")
 
 
 def convert_size(size_bytes) -> str:
@@ -118,10 +150,9 @@ def start_command(client: Client, message: Message) -> None:
 @app.on_message(filters=filters.command("ng"))
 def ngrok_command(client: Client, message: Message) -> None:
     msg = ""
-    api_url = ["http://127.0.0.1:4040/api/tunnels", "http://127.0.0.1:4050/api/tunnels"]
     status_count = 0
     print("fetching ngrok info")
-    for url in api_url:
+    for url in ngrok_api_url:
         try:
             response = requests.get(url, headers={'Content-Type': 'application/json'})
         except (ConnectionError, HTTPError):
