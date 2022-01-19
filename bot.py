@@ -80,7 +80,8 @@ def send_menu(message, chat) -> None:
                 InlineKeyboardButton("🗑 Delete All", "delete_all")],
                [InlineKeyboardButton("➕ Add Category", "add_category"),
                 InlineKeyboardButton("🗑 Remove Category", "select_category#remove_category")],
-               [InlineKeyboardButton("📝 Modify Category", "select_category#modify_category")]]
+               [InlineKeyboardButton("📝 Modify Category", "select_category#modify_category")],
+               [InlineKeyboardButton("🚀 Ngrok Info", "ngrok_info")]]
 
     try:
         app.edit_message_text(chat, message, text="Qbittorrent Control", reply_markup=InlineKeyboardMarkup(buttons))
@@ -147,30 +148,6 @@ def start_command(client: Client, message: Message) -> None:
         app.send_message(message.chat.id, "You are not authorized to use this bot", reply_markup=button)
 
 
-@app.on_message(filters=filters.command("ng"))
-def ngrok_command(client: Client, message: Message) -> None:
-    msg = ""
-    status_count = 0
-    print("fetching ngrok info")
-    for url in ngrok_api_url:
-        try:
-            response = requests.get(url, headers={'Content-Type': 'application/json'})
-        except (ConnectionError, HTTPError):
-            print(f'failed to connect: {url}')
-        else:
-            if response.status_code == 200:
-                status_count += 1
-                tunnels = response.json()["tunnels"]
-                for tunnel in tunnels:
-                    msg += f'🚀 <b>Name:</b> <code>{tunnel["name"]}</code>\n'
-                    msg += f'⚡ <b>URL:</b> {tunnel["public_url"]}\n\n'
-            response.close()
-    if status_count == 2:
-        message.reply_text(msg, parse_mode="html")
-    else:
-        message.reply_text('‼️ <b>Failed to get api response</b>', parse_mode="html")
-
-
 @app.on_message(filters=filters.command("stats"))
 def stats_command(client: Client, message: Message) -> None:
     if message.from_user.id in AUTHORIZED_IDS:
@@ -200,6 +177,36 @@ def add_category_callback(client: Client, callback_query: CallbackQuery) -> None
                               "Send the category name", reply_markup=button)
     except MessageIdInvalid:
         app.send_message(callback_query.from_user.id, "Send the category name", reply_markup=button)
+
+
+@app.on_callback_query(filters=custom_filters.ngrok_info_filter)
+def ngrok_info_callback(client: Client, callback_query: CallbackQuery) -> None:
+    button = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", "menu")]])
+    msg = ""
+    status_count = 0
+    print("fetching ngrok info")
+    for url in ngrok_api_url:
+        try:
+            response = requests.get(url, headers={'Content-Type': 'application/json'})
+        except (ConnectionError, HTTPError):
+            print(f'failed to connect: {url}')
+        else:
+            if response.status_code == 200:
+                status_count += 1
+                tunnels = response.json()["tunnels"]
+                for tunnel in tunnels:
+                    msg += f'🚀 <b>Name:</b> <code>{tunnel["name"]}</code>\n'
+                    msg += f'⚡ <b>URL:</b> {tunnel["public_url"]}\n\n'
+            response.close()
+    if status_count == 2:
+        pass
+    else:
+        msg = '‼️ <b>Failed to get api response</b>'
+    app.edit_message_text(callback_query.from_user.id,
+                          callback_query.message.message_id,
+                          msg,
+                          parse_mode="html",
+                          reply_markup=button)
 
 
 @app.on_callback_query(filters=custom_filters.select_category_filter)
