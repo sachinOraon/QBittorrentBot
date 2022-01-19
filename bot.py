@@ -80,7 +80,8 @@ def send_menu(message, chat) -> None:
                 InlineKeyboardButton("🗑 Delete All", "delete_all")],
                [InlineKeyboardButton("➕ Add Category", "add_category"),
                 InlineKeyboardButton("🗑 Remove Category", "select_category#remove_category")],
-               [InlineKeyboardButton("📝 Modify Category", "select_category#modify_category")],
+               [InlineKeyboardButton("📝 Modify Category", "select_category#modify_category"),
+                InlineKeyboardButton("🚦 System Info", "system_info")],
                [InlineKeyboardButton("🚀 Ngrok Info", "ngrok_info")]]
 
     try:
@@ -148,24 +149,24 @@ def start_command(client: Client, message: Message) -> None:
         app.send_message(message.chat.id, "You are not authorized to use this bot", reply_markup=button)
 
 
-@app.on_message(filters=filters.command("stats"))
-def stats_command(client: Client, message: Message) -> None:
-    if message.from_user.id in AUTHORIZED_IDS:
-
+@app.on_callback_query(filters=custom_filters.system_info_filter)
+def stats_command(client: Client, callback_query: CallbackQuery) -> None:
+    button = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", "menu")]])
+    try:
         txt = f"**============SYSTEM============**\n" \
-              f"**CPU Usage:** {psutil.cpu_percent(interval=None)}%\n" \
-              f"**CPU Temp:** {psutil.sensors_temperatures()['coretemp'][0].current}°C\n" \
-              f"**Free Memory:** {convert_size(psutil.virtual_memory().available)} of " \
-              f"{convert_size(psutil.virtual_memory().total)} ({psutil.virtual_memory().percent}%)\n" \
-              f"**Disks usage:** {convert_size(psutil.disk_usage('/mnt').used)} of " \
-              f"{convert_size(psutil.disk_usage('/mnt').total)} ({psutil.disk_usage('/mnt').percent}%)"
-
-        message.reply_text(txt, parse_mode="markdown")
-
-    else:
-        button = InlineKeyboardMarkup([[InlineKeyboardButton("Github",
-                                                             url="https://github.com/ch3p4ll3/QBittorrentBot/")]])
-        app.send_message(message.chat.id, "You are not authorized to use this bot", reply_markup=button)
+            f"**CPU Usage:** {psutil.cpu_percent(interval=None)}%\n" \
+            f"**CPU Temp:** {psutil.sensors_temperatures()['coretemp'][0].current}°C\n" \
+            f"**Free Memory:** {convert_size(psutil.virtual_memory().available)} of " \
+            f"{convert_size(psutil.virtual_memory().total)} ({psutil.virtual_memory().percent}%)\n" \
+            f"**Disks usage:** {convert_size(psutil.disk_usage('/mnt').used)} of " \
+            f"{convert_size(psutil.disk_usage('/mnt').total)} ({psutil.disk_usage('/mnt').percent}%)"
+    except AttributeError:
+        txt = "‼️ Failed to get system info"
+    app.edit_message_text(callback_query.from_user.id,
+                          callback_query.message.message_id,
+                          txt,
+                          parse_mode="markdown",
+                          reply_markup=button)
 
 
 @app.on_callback_query(filters=custom_filters.add_category_filter)

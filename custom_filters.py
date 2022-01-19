@@ -22,3 +22,4 @@ delete_all_data_filter = filters.create(lambda _, __, query: query.data.startswi
 torrentInfo_filter = filters.create(lambda _, __, query: query.data.startswith("torrentInfo"))
 select_category_filter = filters.create(lambda _, __, query: query.data.startswith("select_category"))
 ngrok_info_filter = filters.create(lambda _, __, query: query.data.startswith("ngrok_info"))
+system_info_filter = filters.create(lambda _, __, query: query.data.startswith("system_info"))
