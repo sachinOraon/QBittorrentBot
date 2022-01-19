@@ -1,8 +1,10 @@
 import datetime
 import os
 import tempfile
+import requests
 from math import log, floor
-
+from requests import ConnectionError
+from requests import HTTPError
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, CallbackQuery
 from pyrogram.errors.exceptions import MessageIdInvalid
@@ -111,6 +113,31 @@ def start_command(client: Client, message: Message) -> None:
         button = InlineKeyboardMarkup([[InlineKeyboardButton("Github",
                                                              url="https://github.com/ch3p4ll3/QBittorrentBot/")]])
         app.send_message(message.chat.id, "You are not authorized to use this bot", reply_markup=button)
+
+
+@app.on_message(filters=filters.command("ng"))
+def ngrok_command(client: Client, message: Message) -> None:
+    msg = ""
+    api_url = ["http://127.0.0.1:4040/api/tunnels", "http://127.0.0.1:4050/api/tunnels"]
+    status_count = 0
+    print("fetching ngrok info")
+    for url in api_url:
+        try:
+            response = requests.get(url, headers={'Content-Type': 'application/json'})
+        except (ConnectionError, HTTPError):
+            print(f'failed to connect: {url}')
+        else:
+            if response.status_code == 200:
+                status_count += 1
+                tunnels = response.json()["tunnels"]
+                for tunnel in tunnels:
+                    msg += f'🚀 <b>Name:</b> <code>{tunnel["name"]}</code>\n'
+                    msg += f'⚡ <b>URL:</b> {tunnel["public_url"]}\n\n'
+            response.close()
+    if status_count == 2:
+        message.reply_text(msg, parse_mode="html")
+    else:
+        message.reply_text('‼️ <b>Failed to get api response</b>', parse_mode="html")
 
 
 @app.on_message(filters=filters.command("stats"))
