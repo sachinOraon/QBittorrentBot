@@ -160,7 +160,7 @@ def stats_command(client: Client, callback_query: CallbackQuery) -> None:
             f"{convert_size(psutil.virtual_memory().total)} ({psutil.virtual_memory().percent}%)\n" \
             f"**Disks usage:** {convert_size(psutil.disk_usage('/mnt').used)} of " \
             f"{convert_size(psutil.disk_usage('/mnt').total)} ({psutil.disk_usage('/mnt').percent}%)"
-    except AttributeError:
+    except (AttributeError, KeyError):
         txt = "‼️ Failed to get system info"
     app.edit_message_text(callback_query.from_user.id,
                           callback_query.message.message_id,
