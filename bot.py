@@ -28,7 +28,7 @@ def get_ngrok_info():
     sleep_sec = 60
     status_count = 0
     msg = ""
-    while status_count != 2 and retry_count <= max_retry:
+    while status_count != len(ngrok_api_url) and retry_count <= max_retry:
         for url in ngrok_api_url:
             print(f'fetching ngrok tunnel info: {url}')
             try:
@@ -43,7 +43,7 @@ def get_ngrok_info():
                         msg += f'🚀 <b>Name:</b> <code>{tunnel["name"]}</code>\n'
                         msg += f'⚡ <b>URL:</b> {tunnel["public_url"]}\n\n'
                 response.close()
-        if status_count == 2:
+        if status_count == len(ngrok_api_url):
             break
         retry_count += 1
         time.sleep(sleep_sec)
