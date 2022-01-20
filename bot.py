@@ -9,19 +9,21 @@ from requests import HTTPError
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, CallbackQuery
 from pyrogram.errors.exceptions import MessageIdInvalid
+from logging2 import Logger
 import psutil
-
 import custom_filters
 import qbittorrent_control
 from check_finished_torrents import checkTorrents
 from config import API_ID, API_HASH, TG_TOKEN, AUTHORIZED_IDS
 import db_management
 
+logger = Logger(__name__)
 app = Client("qbittorrent_bot", api_id=API_ID, api_hash=API_HASH, bot_token=TG_TOKEN)
+ngrok_api_url = ["http://127.0.0.1:4040/api/tunnels", "http://127.0.0.1:4050/api/tunnels"]
 spammer = checkTorrents(app)
 spammer.start()
 
-ngrok_api_url = ["http://127.0.0.1:4040/api/tunnels", "http://127.0.0.1:4050/api/tunnels"]
+
 def get_ngrok_info():
     max_retry = 10
     retry_count = 0
@@ -30,11 +32,11 @@ def get_ngrok_info():
     msg = ""
     while status_count != len(ngrok_api_url) and retry_count <= max_retry:
         for url in ngrok_api_url:
-            print(f'fetching ngrok tunnel info: {url}')
+            logger.info(f'fetching ngrok tunnel info: {url}')
             try:
                 response = requests.get(url, headers={'Content-Type': 'application/json'})
             except (ConnectionError, HTTPError):
-                print(f'failed to connect: {url}')
+                logger.error(f'failed to connect: {url}')
             else:
                 if response.status_code == 200:
                     status_count += 1
@@ -43,14 +45,15 @@ def get_ngrok_info():
                         msg += f'🚀 <b>Name:</b> <code>{tunnel["name"]}</code>\n'
                         msg += f'⚡ <b>URL:</b> {tunnel["public_url"]}\n\n'
                 response.close()
+        retry_count += 1
         if status_count == len(ngrok_api_url):
             break
-        retry_count += 1
         time.sleep(sleep_sec)
-    for user_id in AUTHORIZED_IDS:
-        app.send_message(user_id, msg, parse_mode="html")
     if retry_count > max_retry:
-        print("failed to get ngrok info on startup")
+        logger.error("failed to get ngrok info on startup")
+    else:
+        for user_id in AUTHORIZED_IDS:
+            app.send_message(user_id, msg, parse_mode="html")
 
 
 def convert_size(size_bytes) -> str:
@@ -68,6 +71,7 @@ def convert_eta(n) -> str:
 
 
 def send_menu(message, chat) -> None:
+    logger.info(f"send_menu: {chat}")
     db_management.write_support("None", chat)
     buttons = [[InlineKeyboardButton("📝 List", "list")],
                [InlineKeyboardButton("➕ Add Magnet", "category#add_magnet"),
@@ -92,6 +96,7 @@ def send_menu(message, chat) -> None:
 
 
 def list_active_torrents(n, chat, message, callback, status_filter: str = None) -> None:
+    logger.info(f"list_active_torrents: {chat}")
     torrents = qbittorrent_control.get_torrent_info(status_filter=status_filter)
 
     def render_categories_buttons():
@@ -139,6 +144,7 @@ def list_active_torrents(n, chat, message, callback, status_filter: str = None) 
 
 @app.on_message(filters=filters.command("start"))
 def start_command(client: Client, message: Message) -> None:
+    logger.info(f"/start: {message.from_user.first_name}")
     """Start the bot."""
     if message.from_user.id in AUTHORIZED_IDS:
         send_menu(message.message_id, message.chat.id)
@@ -151,6 +157,7 @@ def start_command(client: Client, message: Message) -> None:
 
 @app.on_callback_query(filters=custom_filters.system_info_filter)
 def stats_command(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"/stats: {callback_query.from_user.first_name}")
     button = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", "menu")]])
     try:
         txt = f"**============SYSTEM============**\n" \
@@ -171,6 +178,7 @@ def stats_command(client: Client, callback_query: CallbackQuery) -> None:
 
 @app.on_callback_query(filters=custom_filters.add_category_filter)
 def add_category_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"add category: {callback_query.from_user.first_name}")
     db_management.write_support("category_name", callback_query.from_user.id)
     button = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", "menu")]])
     try:
@@ -182,15 +190,16 @@ def add_category_callback(client: Client, callback_query: CallbackQuery) -> None
 
 @app.on_callback_query(filters=custom_filters.ngrok_info_filter)
 def ngrok_info_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"/nginfo: {callback_query.from_user.first_name}")
     button = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", "menu")]])
     msg = ""
     status_count = 0
-    print("fetching ngrok info")
+    logger.info("fetching ngrok info")
     for url in ngrok_api_url:
         try:
             response = requests.get(url, headers={'Content-Type': 'application/json'})
         except (ConnectionError, HTTPError):
-            print(f'failed to connect: {url}')
+            logger.error(f'failed to connect: {url}')
         else:
             if response.status_code == 200:
                 status_count += 1
@@ -199,7 +208,7 @@ def ngrok_info_callback(client: Client, callback_query: CallbackQuery) -> None:
                     msg += f'🚀 <b>Name:</b> <code>{tunnel["name"]}</code>\n'
                     msg += f'⚡ <b>URL:</b> {tunnel["public_url"]}\n\n'
             response.close()
-    if status_count == 2:
+    if status_count == len(ngrok_api_url):
         pass
     else:
         msg = '‼️ <b>Failed to get api response</b>'
@@ -212,6 +221,7 @@ def ngrok_info_callback(client: Client, callback_query: CallbackQuery) -> None:
 
 @app.on_callback_query(filters=custom_filters.select_category_filter)
 def list_categories(client: Client, callback_query: CallbackQuery):
+    logger.info(f"list category: {callback_query.from_user.first_name}")
     buttons = []
     categories = qbittorrent_control.get_categories()
 
@@ -235,6 +245,7 @@ def list_categories(client: Client, callback_query: CallbackQuery):
 
 @app.on_callback_query(filters=custom_filters.remove_category_filter)
 def remove_category_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"remove category: {callback_query.from_user.first_name}")
     buttons = [[InlineKeyboardButton("🔙 Menu", "menu")]]
 
     qbittorrent_control.remove_category(data=callback_query.data.split("#")[1])
@@ -245,6 +256,7 @@ def remove_category_callback(client: Client, callback_query: CallbackQuery) -> N
 
 @app.on_callback_query(filters=custom_filters.modify_category_filter)
 def modify_category_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"modify category: {callback_query.from_user.first_name}")
     buttons = [[InlineKeyboardButton("🔙 Menu", "menu")]]
 
     db_management.write_support(f"category_dir_modify#{callback_query.data.split('#')[1]}", callback_query.from_user.id)
@@ -255,6 +267,7 @@ def modify_category_callback(client: Client, callback_query: CallbackQuery) -> N
 
 @app.on_callback_query(filters=custom_filters.category_filter)
 def category(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"category: {callback_query.from_user.first_name}")
     buttons = []
 
     categories = qbittorrent_control.get_categories()
@@ -283,47 +296,56 @@ def category(client: Client, callback_query: CallbackQuery) -> None:
 
 @app.on_callback_query(filters=custom_filters.menu_filter)
 def menu_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"menu: {callback_query.from_user.first_name}")
     send_menu(callback_query.message.message_id, callback_query.from_user.id)
 
 
 @app.on_callback_query(filters=custom_filters.list_filter)
 def list_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"list: {callback_query.from_user.first_name}")
     list_active_torrents(0, callback_query.from_user.id, callback_query.message.message_id,
                          db_management.read_support(callback_query.from_user.id))
 
 
 @app.on_callback_query(filters=custom_filters.list_by_status_filter)
 def list_by_status_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"list by status: {callback_query.from_user.first_name}")
     status_filter = callback_query.data.split("#")[1]
     list_active_torrents(0, callback_query.from_user.id, callback_query.message.message_id,
                          db_management.read_support(callback_query.from_user.id), status_filter=status_filter)
 
+
 @app.on_callback_query(filters=custom_filters.add_magnet_filter)
 def addmagnet_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"add magnet: {callback_query.from_user.first_name}")
     db_management.write_support(f"magnet#{callback_query.data.split('#')[1]}", callback_query.from_user.id)
     app.answer_callback_query(callback_query.id, "Send a magnet link")
 
 
 @app.on_callback_query(filters=custom_filters.add_torrent_filter)
 def addtorrent_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"add torrent: {callback_query.from_user.first_name}")
     db_management.write_support(f"torrent#{callback_query.data.split('#')[1]}", callback_query.from_user.id)
     app.answer_callback_query(callback_query.id, "Send a torrent file")
 
 
 @app.on_callback_query(filters=custom_filters.pause_all_filter)
 def pauseall_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"pause all: {callback_query.from_user.first_name}")
     qbittorrent_control.pause_all()
     app.answer_callback_query(callback_query.id, "Paused all torrents")
 
 
 @app.on_callback_query(filters=custom_filters.resume_all_filter)
 def resumeall_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"resume all: {callback_query.from_user.first_name}")
     qbittorrent_control.resume_all()
     app.answer_callback_query(callback_query.id, "Resumed all torrents")
 
 
 @app.on_callback_query(filters=custom_filters.pause_filter)
 def pause_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"pause: {callback_query.from_user.first_name}")
     if callback_query.data.find("#") == -1:
         list_active_torrents(1, callback_query.from_user.id, callback_query.message.message_id, "pause")
 
@@ -334,6 +356,7 @@ def pause_callback(client: Client, callback_query: CallbackQuery) -> None:
 
 @app.on_callback_query(filters=custom_filters.resume_filter)
 def resume_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"resume: {callback_query.from_user.first_name}")
     if callback_query.data.find("#") == -1:
         list_active_torrents(1, callback_query.from_user.id, callback_query.message.message_id, "resume")
 
@@ -344,6 +367,7 @@ def resume_callback(client: Client, callback_query: CallbackQuery) -> None:
 
 @app.on_callback_query(filters=custom_filters.delete_one_filter)
 def delete_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"delete: {callback_query.from_user.first_name}")
     if callback_query.data.find("#") == -1:
         list_active_torrents(1, callback_query.from_user.id, callback_query.message.message_id, "delete_one")
 
@@ -359,6 +383,7 @@ def delete_callback(client: Client, callback_query: CallbackQuery) -> None:
 
 @app.on_callback_query(filters=custom_filters.delete_one_no_data_filter)
 def delete_no_data_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"delete no data: {callback_query.from_user.first_name}")
     if callback_query.data.find("#") == -1:
         list_active_torrents(1, callback_query.from_user.id, callback_query.message.message_id, "delete_one_no_data")
 
@@ -369,6 +394,7 @@ def delete_no_data_callback(client: Client, callback_query: CallbackQuery) -> No
 
 @app.on_callback_query(filters=custom_filters.delete_one_data_filter)
 def delete_with_data_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"delete with data: {callback_query.from_user.first_name}")
     if callback_query.data.find("#") == -1:
         list_active_torrents(1, callback_query.from_user.id, callback_query.message.message_id, "delete_one_data")
 
@@ -379,6 +405,7 @@ def delete_with_data_callback(client: Client, callback_query: CallbackQuery) -> 
 
 @app.on_callback_query(filters=custom_filters.delete_all_filter)
 def delete_all_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"delete all: {callback_query.from_user.first_name}")
     buttons = [[InlineKeyboardButton("🗑 Delete all torrents", "delete_all_no_data")],
                [InlineKeyboardButton("🗑 Delete all torrents and data", "delete_all_data")],
                [InlineKeyboardButton("🔙 Menu", "menu")]]
@@ -388,6 +415,7 @@ def delete_all_callback(client: Client, callback_query: CallbackQuery) -> None:
 
 @app.on_callback_query(filters=custom_filters.delete_all_no_data_filter)
 def delete_all_with_no_data_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"delete all no data: {callback_query.from_user.first_name}")
     qbittorrent_control.delall_no_data()
     app.answer_callback_query(callback_query.id, "Deleted only torrents")
     send_menu(callback_query.message.message_id, callback_query.from_user.id)
@@ -395,6 +423,7 @@ def delete_all_with_no_data_callback(client: Client, callback_query: CallbackQue
 
 @app.on_callback_query(filters=custom_filters.delete_all_data_filter)
 def delete_all_with_data_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"delete all with data: {callback_query.from_user.first_name}")
     qbittorrent_control.delall_data()
     app.answer_callback_query(callback_query.id, "Deleted All+Torrents")
     send_menu(callback_query.message.message_id, callback_query.from_user.id)
@@ -402,6 +431,7 @@ def delete_all_with_data_callback(client: Client, callback_query: CallbackQuery)
 
 @app.on_callback_query(filters=custom_filters.torrentInfo_filter)
 def torrent_info_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"torrent info: {callback_query.from_user.first_name}")
     torrent = qbittorrent_control.get_torrent_info(data=int(callback_query.data.split("#")[1]))
     progress = torrent.progress * 100
     text = ""
@@ -443,6 +473,7 @@ def torrent_info_callback(client: Client, callback_query: CallbackQuery) -> None
 
 @app.on_message()
 def on_text(client: Client, message: Message) -> None:
+    logger.info(f"on text: {message.from_user.first_name}")
     action = db_management.read_support(message.from_user.id)
 
     if "magnet" in action:

@@ -1,6 +1,8 @@
 import qbittorrentapi
-
+from logging2 import Logger
 from config import QBITTORRENT_IP, QBITTORRENT_PSW, QBITTORRENT_USER, QBITTORRENT_PORT
+
+logger = Logger(__name__)
 
 
 def qbittorrent_login(func):
@@ -14,8 +16,8 @@ def qbittorrent_login(func):
 
         try:
             qbt_client.auth_log_in()
-        except qbittorrentapi.LoginFailed as e:
-            print(e)
+        except qbittorrentapi.LoginFailed:
+            logger.error(f"LoginFailed: {QBITTORRENT_IP}:{QBITTORRENT_PORT}")
 
         resp = func(qbt_client, *args, **kwargs)
 
