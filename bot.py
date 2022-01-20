@@ -27,10 +27,11 @@ spammer.start()
 def get_ngrok_info():
     max_retry = 10
     retry_count = 0
-    sleep_sec = 60
+    sleep_sec = 20
     status_count = 0
     msg = ""
     while status_count != len(ngrok_api_url) and retry_count <= max_retry:
+        time.sleep(sleep_sec)
         for url in ngrok_api_url:
             logger.info(f'fetching ngrok tunnel info: {url}')
             try:
@@ -48,7 +49,6 @@ def get_ngrok_info():
         retry_count += 1
         if status_count == len(ngrok_api_url):
             break
-        time.sleep(sleep_sec)
     if retry_count > max_retry:
         logger.error("failed to get ngrok info on startup")
     else:
