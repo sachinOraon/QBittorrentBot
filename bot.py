@@ -9,7 +9,7 @@ from requests import HTTPError
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, CallbackQuery
 from pyrogram.errors.exceptions import MessageIdInvalid
-from pyrogram.errors.exceptions.bad_request_400 import PeerIdInvalid
+from pyrogram.errors.exceptions.bad_request_400 import PeerIdInvalid, MessageNotModified
 from logging2 import Logger
 import psutil
 import custom_filters
@@ -137,7 +137,7 @@ def list_active_torrents(n, chat, message, callback, status_filter: str = None) 
 
             try:
                 app.edit_message_reply_markup(chat, message, reply_markup=InlineKeyboardMarkup(buttons))
-            except MessageIdInvalid:
+            except (MessageIdInvalid, MessageNotModified):
                 app.send_message(chat, "Qbittorrent Control", reply_markup=InlineKeyboardMarkup(buttons))
 
         else:
@@ -148,7 +148,7 @@ def list_active_torrents(n, chat, message, callback, status_filter: str = None) 
 
             try:
                 app.edit_message_reply_markup(chat, message, reply_markup=InlineKeyboardMarkup(buttons))
-            except MessageIdInvalid:
+            except (MessageIdInvalid, MessageNotModified):
                 app.send_message(chat, "Qbittorrent Control", reply_markup=InlineKeyboardMarkup(buttons))
 
 
@@ -420,8 +420,13 @@ def delete_callback(client: Client, callback_query: CallbackQuery) -> None:
                    [InlineKeyboardButton("🗑 Delete torrent and data", f"delete_one_data#{callback_query.data.split('#')[1]}")],
                    [InlineKeyboardButton("🔙 Menu", "menu")]]
 
-        app.edit_message_reply_markup(callback_query.from_user.id, callback_query.message.message_id,
+        try:
+            app.edit_message_reply_markup(callback_query.from_user.id, callback_query.message.message_id,
                                       reply_markup=InlineKeyboardMarkup(buttons))
+        except (MessageIdInvalid, MessageNotModified):
+            logger.error("Error in delete_callback")
+            txt = "⚠️ Some error occurred"
+            app.answer_callback_query(callback_query.id, txt)
 
 
 @app.on_callback_query(filters=custom_filters.delete_one_no_data_filter)
@@ -462,8 +467,13 @@ def delete_all_callback(client: Client, callback_query: CallbackQuery) -> None:
     buttons = [[InlineKeyboardButton("🗑 Delete all torrents", "delete_all_no_data")],
                [InlineKeyboardButton("🗑 Delete all torrents and data", "delete_all_data")],
                [InlineKeyboardButton("🔙 Menu", "menu")]]
-    app.edit_message_reply_markup(callback_query.from_user.id, callback_query.message.message_id,
+    try:
+        app.edit_message_reply_markup(callback_query.from_user.id, callback_query.message.message_id,
                                   reply_markup=InlineKeyboardMarkup(buttons))
+    except (MessageIdInvalid, MessageNotModified):
+        logger.error("Error in delete_all_callback")
+        txt = "⚠️ Some error occurred"
+        app.answer_callback_query(callback_query.id, txt)
 
 
 @app.on_callback_query(filters=custom_filters.delete_all_no_data_filter)
