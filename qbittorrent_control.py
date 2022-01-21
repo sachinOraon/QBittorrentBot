@@ -16,16 +16,14 @@ def qbittorrent_login(func):
 
         try:
             qbt_client.auth_log_in()
-        except qbittorrentapi.LoginFailed:
-            logger.error(f"LoginFailed: {QBITTORRENT_IP}:{QBITTORRENT_PORT}")
-        except qbittorrentapi.Forbidden403Error:
-            logger.error(f"Forbidden403Error: {QBITTORRENT_USER} is banned")
-
-        resp = func(qbt_client, *args, **kwargs)
-
-        qbt_client.auth_log_out()
-
-        return resp
+        except Exception as exc:
+            msg = f"Error connecting: {QBITTORRENT_IP}:{QBITTORRENT_PORT} with {QBITTORRENT_USER}/{QBITTORRENT_PSW}"
+            logger.error(msg)
+            raise RuntimeError(msg) from exc
+        else:
+            resp = func(qbt_client, *args, **kwargs)
+            qbt_client.auth_log_out()
+            return resp
 
     return wrapper
 

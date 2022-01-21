@@ -97,49 +97,55 @@ def send_menu(message, chat) -> None:
 
 def list_active_torrents(n, chat, message, callback, status_filter: str = None) -> None:
     logger.info(f"list_active_torrents: {chat}")
-    torrents = qbittorrent_control.get_torrent_info(status_filter=status_filter)
-
-    def render_categories_buttons():
-        return [
-            InlineKeyboardButton(f"⏳ {'*' if status_filter == 'downloading' else ''} Downloading",
-                                 "by_status_list#downloading"),
-            InlineKeyboardButton(f"✔️ {'*' if status_filter == 'completed' else ''} Completed",
-                                 "by_status_list#completed"),
-            InlineKeyboardButton(f"⏸️ {'*' if status_filter == 'paused' else ''} Paused", "by_status_list#paused"),
-        ]
-
-    categories_buttons = render_categories_buttons()
-    if not torrents:
-        buttons = [categories_buttons, [InlineKeyboardButton("🔙 Menu", "menu")]]
-        try:
-            app.edit_message_text(chat, message, "There are no torrents", reply_markup=InlineKeyboardMarkup(buttons))
-        except MessageIdInvalid:
-            app.send_message(chat, "There are no torrents", reply_markup=InlineKeyboardMarkup(buttons))
-        return
-
-    buttons = [categories_buttons]
-
-    if n == 1:
-        for key, i in enumerate(torrents):
-            buttons.append([InlineKeyboardButton(i.name, f"{callback}#{key+1}")])
-
-        buttons.append([InlineKeyboardButton("🔙 Menu", "menu")])
-
-        try:
-            app.edit_message_reply_markup(chat, message, reply_markup=InlineKeyboardMarkup(buttons))
-        except MessageIdInvalid:
-            app.send_message(chat, "Qbittorrent Control", reply_markup=InlineKeyboardMarkup(buttons))
-
+    try:
+        torrents = qbittorrent_control.get_torrent_info(status_filter=status_filter)
+    except Exception:
+        logger.error("Error in list_active_torrents")
+        txt = "⚠️ <b>Some error occurred</b>"
+        button = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", "menu")]])
+        app.edit_message_text(chat, message, txt, parse_mode="html", reply_markup=button)
     else:
-        for key, i in enumerate(torrents):
-            buttons.append([InlineKeyboardButton(i.name, f"torrentInfo#{key+1}")])
+        def render_categories_buttons():
+            return [
+                InlineKeyboardButton(f"⏳ {'*' if status_filter == 'downloading' else ''} Downloading",
+                                     "by_status_list#downloading"),
+                InlineKeyboardButton(f"✔️ {'*' if status_filter == 'completed' else ''} Completed",
+                                     "by_status_list#completed"),
+                InlineKeyboardButton(f"⏸️ {'*' if status_filter == 'paused' else ''} Paused", "by_status_list#paused"),
+            ]
 
-        buttons.append([InlineKeyboardButton("🔙 Menu", "menu")])
+        categories_buttons = render_categories_buttons()
+        if not torrents:
+            buttons = [categories_buttons, [InlineKeyboardButton("🔙 Menu", "menu")]]
+            try:
+                app.edit_message_text(chat, message, "There are no torrents", reply_markup=InlineKeyboardMarkup(buttons))
+            except MessageIdInvalid:
+                app.send_message(chat, "There are no torrents", reply_markup=InlineKeyboardMarkup(buttons))
+            return
 
-        try:
-            app.edit_message_reply_markup(chat, message, reply_markup=InlineKeyboardMarkup(buttons))
-        except MessageIdInvalid:
-            app.send_message(chat, "Qbittorrent Control", reply_markup=InlineKeyboardMarkup(buttons))
+        buttons = [categories_buttons]
+
+        if n == 1:
+            for key, i in enumerate(torrents):
+                buttons.append([InlineKeyboardButton(i.name, f"{callback}#{key+1}")])
+
+            buttons.append([InlineKeyboardButton("🔙 Menu", "menu")])
+
+            try:
+                app.edit_message_reply_markup(chat, message, reply_markup=InlineKeyboardMarkup(buttons))
+            except MessageIdInvalid:
+                app.send_message(chat, "Qbittorrent Control", reply_markup=InlineKeyboardMarkup(buttons))
+
+        else:
+            for key, i in enumerate(torrents):
+                buttons.append([InlineKeyboardButton(i.name, f"torrentInfo#{key+1}")])
+
+            buttons.append([InlineKeyboardButton("🔙 Menu", "menu")])
+
+            try:
+                app.edit_message_reply_markup(chat, message, reply_markup=InlineKeyboardMarkup(buttons))
+            except MessageIdInvalid:
+                app.send_message(chat, "Qbittorrent Control", reply_markup=InlineKeyboardMarkup(buttons))
 
 
 @app.on_message(filters=filters.command("start"))
@@ -223,35 +229,44 @@ def ngrok_info_callback(client: Client, callback_query: CallbackQuery) -> None:
 def list_categories(client: Client, callback_query: CallbackQuery):
     logger.info(f"list category: {callback_query.from_user.first_name}")
     buttons = []
-    categories = qbittorrent_control.get_categories()
-
-    if categories is None:
-        buttons.append([InlineKeyboardButton("🔙 Menu", "menu")])
-        app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id,
-                              "There are no categories", reply_markup=InlineKeyboardMarkup(buttons))
-        return
-
-    for key, i in enumerate(categories):
-        buttons.append([InlineKeyboardButton(i, f"{callback_query.data.split('#')[1]}#{i}")])
-
-    buttons.append([InlineKeyboardButton("🔙 Menu", "menu")])
-
     try:
-        app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id,
-                              "Choose a category:", reply_markup=InlineKeyboardMarkup(buttons))
-    except MessageIdInvalid:
-        app.send_message(callback_query.from_user.id, "Choose a category:", reply_markup=InlineKeyboardMarkup(buttons))
+        categories = qbittorrent_control.get_categories()
+    except Exception:
+        logger.error("Error in list_categories")
+        txt = "⚠️ Some error occurred"
+        app.answer_callback_query(callback_query.id, txt)
+    else:
+        if categories is None:
+            buttons.append([InlineKeyboardButton("🔙 Menu", "menu")])
+            app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id,
+                                  "There are no categories", reply_markup=InlineKeyboardMarkup(buttons))
+            return
+
+        for key, i in enumerate(categories):
+            buttons.append([InlineKeyboardButton(i, f"{callback_query.data.split('#')[1]}#{i}")])
+
+        buttons.append([InlineKeyboardButton("🔙 Menu", "menu")])
+
+        try:
+            app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id,
+                                  "Choose a category:", reply_markup=InlineKeyboardMarkup(buttons))
+        except MessageIdInvalid:
+            app.send_message(callback_query.from_user.id, "Choose a category:", reply_markup=InlineKeyboardMarkup(buttons))
 
 
 @app.on_callback_query(filters=custom_filters.remove_category_filter)
 def remove_category_callback(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"remove category: {callback_query.from_user.first_name}")
     buttons = [[InlineKeyboardButton("🔙 Menu", "menu")]]
-
-    qbittorrent_control.remove_category(data=callback_query.data.split("#")[1])
-    app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id,
+    try:
+        qbittorrent_control.remove_category(data=callback_query.data.split("#")[1])
+        app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id,
                           f"The category {callback_query.data.split('#')[1]} has been removed",
                           reply_markup=InlineKeyboardMarkup(buttons))
+    except Exception:
+        logger.error("Error in remove_category_callback")
+        txt = "⚠️ Some error occurred"
+        app.answer_callback_query(callback_query.id, txt)
 
 
 @app.on_callback_query(filters=custom_filters.modify_category_filter)
@@ -269,29 +284,33 @@ def modify_category_callback(client: Client, callback_query: CallbackQuery) -> N
 def category(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"category: {callback_query.from_user.first_name}")
     buttons = []
-
-    categories = qbittorrent_control.get_categories()
-
-    if categories is None:
-        if "magnet" in callback_query.data:
-            addmagnet_callback(client, callback_query)
-
-        else:
-            addtorrent_callback(client, callback_query)
-
-        return
-
-    for key, i in enumerate(categories):
-        buttons.append([InlineKeyboardButton(i, f"{callback_query.data.split('#')[1]}#{i}")])
-
-    buttons.append([InlineKeyboardButton("None", f"{callback_query.data.split('#')[1]}#None")])
-    buttons.append([InlineKeyboardButton("🔙 Menu", "menu")])
-
     try:
-        app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id,
-                              "Choose a category:", reply_markup=InlineKeyboardMarkup(buttons))
-    except MessageIdInvalid:
-        app.send_message(callback_query.from_user.id, "Choose a category:", reply_markup=InlineKeyboardMarkup(buttons))
+        categories = qbittorrent_control.get_categories()
+    except Exception:
+        logger.error("Error in category")
+        txt = "⚠️ Some error occurred"
+        app.answer_callback_query(callback_query.id, txt)
+    else:
+        if categories is None:
+            if "magnet" in callback_query.data:
+                addmagnet_callback(client, callback_query)
+
+            else:
+                addtorrent_callback(client, callback_query)
+
+            return
+
+        for key, i in enumerate(categories):
+            buttons.append([InlineKeyboardButton(i, f"{callback_query.data.split('#')[1]}#{i}")])
+
+        buttons.append([InlineKeyboardButton("None", f"{callback_query.data.split('#')[1]}#None")])
+        buttons.append([InlineKeyboardButton("🔙 Menu", "menu")])
+
+        try:
+            app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id,
+                                  "Choose a category:", reply_markup=InlineKeyboardMarkup(buttons))
+        except MessageIdInvalid:
+            app.send_message(callback_query.from_user.id, "Choose a category:", reply_markup=InlineKeyboardMarkup(buttons))
 
 
 @app.on_callback_query(filters=custom_filters.menu_filter)
@@ -332,15 +351,25 @@ def addtorrent_callback(client: Client, callback_query: CallbackQuery) -> None:
 @app.on_callback_query(filters=custom_filters.pause_all_filter)
 def pauseall_callback(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"pause all: {callback_query.from_user.first_name}")
-    qbittorrent_control.pause_all()
-    app.answer_callback_query(callback_query.id, "Paused all torrents")
+    txt = "⏸️ Paused all torrents"
+    try:
+        qbittorrent_control.pause_all()
+    except Exception:
+        logger.error("Error in pauseall_callback")
+        txt = "⚠️ Some error occurred"
+    app.answer_callback_query(callback_query.id, txt)
 
 
 @app.on_callback_query(filters=custom_filters.resume_all_filter)
 def resumeall_callback(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"resume all: {callback_query.from_user.first_name}")
-    qbittorrent_control.resume_all()
-    app.answer_callback_query(callback_query.id, "Resumed all torrents")
+    try:
+        msg = "▶️ Resumed all torrents"
+        qbittorrent_control.resume_all()
+    except Exception:
+        logger.error("Error in resumeall_callback")
+        msg = "⚠️ Some error occurred"
+    app.answer_callback_query(callback_query.id, msg)
 
 
 @app.on_callback_query(filters=custom_filters.pause_filter)
@@ -350,8 +379,13 @@ def pause_callback(client: Client, callback_query: CallbackQuery) -> None:
         list_active_torrents(1, callback_query.from_user.id, callback_query.message.message_id, "pause")
 
     else:
-        qbittorrent_control.pause(id_torrent=int(callback_query.data.split("#")[1]))
-        send_menu(callback_query.message.message_id, callback_query.from_user.id)
+        try:
+            qbittorrent_control.pause(id_torrent=int(callback_query.data.split("#")[1]))
+            send_menu(callback_query.message.message_id, callback_query.from_user.id)
+        except Exception:
+            logger.error("Error in pause_callback")
+            txt = "⚠️ Some error occurred"
+            app.answer_callback_query(callback_query.id, txt)
 
 
 @app.on_callback_query(filters=custom_filters.resume_filter)
@@ -361,8 +395,13 @@ def resume_callback(client: Client, callback_query: CallbackQuery) -> None:
         list_active_torrents(1, callback_query.from_user.id, callback_query.message.message_id, "resume")
 
     else:
-        qbittorrent_control.resume(id_torrent=int(callback_query.data.split("#")[1]))
-        send_menu(callback_query.message.message_id, callback_query.from_user.id)
+        try:
+            qbittorrent_control.resume(id_torrent=int(callback_query.data.split("#")[1]))
+            send_menu(callback_query.message.message_id, callback_query.from_user.id)
+        except Exception:
+            logger.error("Error in resume_callback")
+            txt = "⚠️ Some error occurred"
+            app.answer_callback_query(callback_query.id, txt)
 
 
 @app.on_callback_query(filters=custom_filters.delete_one_filter)
@@ -388,8 +427,13 @@ def delete_no_data_callback(client: Client, callback_query: CallbackQuery) -> No
         list_active_torrents(1, callback_query.from_user.id, callback_query.message.message_id, "delete_one_no_data")
 
     else:
-        qbittorrent_control.delete_one_no_data(id_torrent=int(callback_query.data.split("#")[1]))
-        send_menu(callback_query.message.message_id, callback_query.from_user.id)
+        try:
+            qbittorrent_control.delete_one_no_data(id_torrent=int(callback_query.data.split("#")[1]))
+            send_menu(callback_query.message.message_id, callback_query.from_user.id)
+        except Exception:
+            logger.error("Error in delete_no_data_callback")
+            txt = "⚠️ Some error occurred"
+            app.answer_callback_query(callback_query.id, txt)
 
 
 @app.on_callback_query(filters=custom_filters.delete_one_data_filter)
@@ -399,8 +443,13 @@ def delete_with_data_callback(client: Client, callback_query: CallbackQuery) -> 
         list_active_torrents(1, callback_query.from_user.id, callback_query.message.message_id, "delete_one_data")
 
     else:
-        qbittorrent_control.delete_one_data(id_torrent=int(callback_query.data.split("#")[1]))
-        send_menu(callback_query.message.message_id, callback_query.from_user.id)
+        try:
+            qbittorrent_control.delete_one_data(id_torrent=int(callback_query.data.split("#")[1]))
+            send_menu(callback_query.message.message_id, callback_query.from_user.id)
+        except Exception:
+            logger.error("Error in delete_with_data_callback")
+            txt = "⚠️ Some error occurred"
+            app.answer_callback_query(callback_query.id, txt)
 
 
 @app.on_callback_query(filters=custom_filters.delete_all_filter)
@@ -416,59 +465,75 @@ def delete_all_callback(client: Client, callback_query: CallbackQuery) -> None:
 @app.on_callback_query(filters=custom_filters.delete_all_no_data_filter)
 def delete_all_with_no_data_callback(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"delete all no data: {callback_query.from_user.first_name}")
-    qbittorrent_control.delall_no_data()
-    app.answer_callback_query(callback_query.id, "Deleted only torrents")
+    txt = "🗑 Deleted only torrents"
+    try:
+        qbittorrent_control.delall_no_data()
+    except Exception:
+        logger.error("Error in delete_all_with_no_data_callback")
+        txt = "⚠️ Some error occurred"
+    app.answer_callback_query(callback_query.id, txt)
     send_menu(callback_query.message.message_id, callback_query.from_user.id)
 
 
 @app.on_callback_query(filters=custom_filters.delete_all_data_filter)
 def delete_all_with_data_callback(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"delete all with data: {callback_query.from_user.first_name}")
-    qbittorrent_control.delall_data()
-    app.answer_callback_query(callback_query.id, "Deleted All+Torrents")
+    txt = "🗑 Deleted All Torrents+Data"
+    try:
+        qbittorrent_control.delall_data()
+    except Exception:
+        logger.error("Error in delete_all_with_data_callback")
+        txt = "⚠️ Some error occurred"
+    app.answer_callback_query(callback_query.id, txt)
     send_menu(callback_query.message.message_id, callback_query.from_user.id)
 
 
 @app.on_callback_query(filters=custom_filters.torrentInfo_filter)
 def torrent_info_callback(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"torrent info: {callback_query.from_user.first_name}")
-    torrent = qbittorrent_control.get_torrent_info(data=int(callback_query.data.split("#")[1]))
-    progress = torrent.progress * 100
-    text = ""
-
-    if progress == 0:
-        text += f"{torrent.name}\n[            ] " \
-                f"{round(progress, 2)}% completed\n" \
-                f"State: {torrent.state.capitalize()}\n" \
-                f"Download Speed: {convert_size(torrent.dlspeed)}/s\n" \
-                f"Size: {convert_size(torrent.size)}\nETA: " \
-                f"{convert_eta(int(torrent.eta))}\n" \
-                f"Category: {torrent.category}\n"
-
-    elif progress == 100:
-        text += f"{torrent.name}\n[completed] " \
-                f"{round(progress, 2)}% completed\n" \
-                f"State: {torrent.state.capitalize()}\n" \
-                f"Upload Speed: {convert_size(torrent.upspeed)}/s\n" \
-                f"Category: {torrent.category}\n"
-
+    try:
+        torrent = qbittorrent_control.get_torrent_info(data=int(callback_query.data.split("#")[1]))
+    except Exception:
+        logger.error("Error in torrent_info_callback")
+        txt = "⚠️ Some error occurred"
+        app.answer_callback_query(callback_query.id, txt)
     else:
-        text += f"{torrent.name}\n[{'=' * int(progress / 10)}" \
-                f"{' ' * int(12 - (progress / 10))}]" \
-                f" {round(progress, 2)}% completed\n" \
-                f"State: {torrent.state.capitalize()} \n" \
-                f"Download Speed: {convert_size(torrent.dlspeed)}/s\n" \
-                f"Size: {convert_size(torrent.size)}\nETA: " \
-                f"{convert_eta(int(torrent.eta))}\n" \
-                f"Category: {torrent.category}\n"
+        progress = torrent.progress * 100
+        text = ""
 
-    buttons = [[InlineKeyboardButton("⏸ Pause", f"pause#{callback_query.data.split('#')[1]}")],
-               [InlineKeyboardButton("▶️ Resume", f"resume#{callback_query.data.split('#')[1]}")],
-               [InlineKeyboardButton("🗑 Delete", f"delete_one#{callback_query.data.split('#')[1]}")],
-               [InlineKeyboardButton("🔙 Menu", "menu")]]
+        if progress == 0:
+            text += f"{torrent.name}\n[            ] " \
+                    f"{round(progress, 2)}% completed\n" \
+                    f"State: {torrent.state.capitalize()}\n" \
+                    f"Download Speed: {convert_size(torrent.dlspeed)}/s\n" \
+                    f"Size: {convert_size(torrent.size)}\nETA: " \
+                    f"{convert_eta(int(torrent.eta))}\n" \
+                    f"Category: {torrent.category}\n"
 
-    app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id, text=text,
-                          reply_markup=InlineKeyboardMarkup(buttons))
+        elif progress == 100:
+            text += f"{torrent.name}\n[completed] " \
+                    f"{round(progress, 2)}% completed\n" \
+                    f"State: {torrent.state.capitalize()}\n" \
+                    f"Upload Speed: {convert_size(torrent.upspeed)}/s\n" \
+                    f"Category: {torrent.category}\n"
+
+        else:
+            text += f"{torrent.name}\n[{'=' * int(progress / 10)}" \
+                    f"{' ' * int(12 - (progress / 10))}]" \
+                    f" {round(progress, 2)}% completed\n" \
+                    f"State: {torrent.state.capitalize()} \n" \
+                    f"Download Speed: {convert_size(torrent.dlspeed)}/s\n" \
+                    f"Size: {convert_size(torrent.size)}\nETA: " \
+                    f"{convert_eta(int(torrent.eta))}\n" \
+                    f"Category: {torrent.category}\n"
+
+        buttons = [[InlineKeyboardButton("⏸ Pause", f"pause#{callback_query.data.split('#')[1]}")],
+                   [InlineKeyboardButton("▶️ Resume", f"resume#{callback_query.data.split('#')[1]}")],
+                   [InlineKeyboardButton("🗑 Delete", f"delete_one#{callback_query.data.split('#')[1]}")],
+                   [InlineKeyboardButton("🔙 Menu", "menu")]]
+
+        app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id, text=text,
+                              reply_markup=InlineKeyboardMarkup(buttons))
 
 
 @app.on_message()

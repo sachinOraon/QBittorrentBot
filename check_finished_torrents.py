@@ -2,11 +2,12 @@ from threading import Thread
 from pyrogram import Client
 from pyrogram.errors.exceptions import UserIsBlocked
 import time
-
+from logging2 import Logger
 import db_management
 import qbittorrent_control
 from config import AUTHORIZED_IDS, NOTIFY
 
+logger = Logger(__name__)
 
 class checkTorrents(Thread):
     def __init__(self, app: Client):
@@ -26,17 +27,20 @@ class checkTorrents(Thread):
             time.sleep(1)
 
     def torrent_finished(self):
-        for i in qbittorrent_control.get_torrent_info():
-            if i.progress == 1 and \
-                    db_management.read_completed_torrents(i.hash) is None \
-                    and NOTIFY:
+        try:
+            for i in qbittorrent_control.get_torrent_info():
+                if i.progress == 1 and \
+                        db_management.read_completed_torrents(i.hash) is None \
+                        and NOTIFY:
 
-                for user_id in AUTHORIZED_IDS:
-                    try:
-                        self.app.send_message(user_id, f"torrent {i.name} has finished downloading!")
-                    except UserIsBlocked:
-                        pass
-                db_management.write_completed_torrents(i.hash)
+                    for user_id in AUTHORIZED_IDS:
+                        try:
+                            self.app.send_message(user_id, f"torrent {i.name} has finished downloading!")
+                        except UserIsBlocked:
+                            pass
+                    db_management.write_completed_torrents(i.hash)
+        except Exception:
+            logger.error("Unable to get torrent info")
 
     def stop(self):
         self.go = False
