@@ -9,6 +9,7 @@ from requests import HTTPError
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, CallbackQuery
 from pyrogram.errors.exceptions import MessageIdInvalid
+from pyrogram.errors.exceptions.bad_request_400 import PeerIdInvalid
 from logging2 import Logger
 import psutil
 import custom_filters
@@ -53,7 +54,10 @@ def get_ngrok_info():
         logger.error("failed to get ngrok info on startup")
     else:
         for user_id in AUTHORIZED_IDS:
-            app.send_message(user_id, msg, parse_mode="html")
+            try:
+                app.send_message(user_id, msg, parse_mode="html")
+            except PeerIdInvalid:
+                logger.error(f"Failed to send ngrok info to {user_id}")
 
 
 def convert_size(size_bytes) -> str:
@@ -168,7 +172,7 @@ def stats_command(client: Client, callback_query: CallbackQuery) -> None:
     try:
         txt = f"**============SYSTEM============**\n" \
             f"**CPU Usage:** {psutil.cpu_percent(interval=None)}%\n" \
-            f"**CPU Temp:** {psutil.sensors_temperatures()['coretemp'][0].current}°C\n" \
+            f"**CPU Temp:** {psutil.sensors_temperatures()['cpu_thermal'][0].current}°C\n" \
             f"**Free Memory:** {convert_size(psutil.virtual_memory().available)} of " \
             f"{convert_size(psutil.virtual_memory().total)} ({psutil.virtual_memory().percent}%)\n" \
             f"**Disks usage:** {convert_size(psutil.disk_usage('/mnt').used)} of " \
