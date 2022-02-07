@@ -179,7 +179,8 @@ def stats_command(client: Client, callback_query: CallbackQuery) -> None:
             f"{convert_size(psutil.virtual_memory().total)} ({psutil.virtual_memory().percent}%)\n" \
             f"**Disks usage:** {convert_size(psutil.disk_usage('/').used)} of " \
             f"{convert_size(psutil.disk_usage('/').total)} ({psutil.disk_usage('/').percent}%)\n" \
-            f"**Public IP:** {subprocess.run(['curl', '--silent', 'ifconfig.me'], capture_output=True).stdout.decode()}"
+            f"**Public IP:** {subprocess.run(['curl', '--silent', 'ifconfig.me'], capture_output=True).stdout.decode()}\n" \
+            f"**Network Usage:** 🔻 {convert_size(psutil.net_io_counters().bytes_recv)} 🔺 {convert_size(psutil.net_io_counters().bytes_sent)}"
     except (AttributeError, KeyError, subprocess.SubprocessError):
         txt = "‼️ Failed to get system info"
     app.edit_message_text(callback_query.from_user.id,
