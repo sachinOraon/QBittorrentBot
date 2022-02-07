@@ -3,6 +3,7 @@ import os
 import time
 import tempfile
 import requests
+import subprocess
 from math import log, floor
 from requests import ConnectionError
 from requests import HTTPError
@@ -172,12 +173,14 @@ def stats_command(client: Client, callback_query: CallbackQuery) -> None:
     try:
         txt = f"**============SYSTEM============**\n" \
             f"**CPU Usage:** {psutil.cpu_percent(interval=None)}%\n" \
+            f"**CPU Freq:** {psutil.cpu_freq(percpu=False).current} MHz\n" \
             f"**CPU Temp:** {psutil.sensors_temperatures()['cpu_thermal'][0].current}°C\n" \
             f"**Free Memory:** {convert_size(psutil.virtual_memory().available)} of " \
             f"{convert_size(psutil.virtual_memory().total)} ({psutil.virtual_memory().percent}%)\n" \
-            f"**Disks usage:** {convert_size(psutil.disk_usage('/mnt').used)} of " \
-            f"{convert_size(psutil.disk_usage('/mnt').total)} ({psutil.disk_usage('/mnt').percent}%)"
-    except (AttributeError, KeyError):
+            f"**Disks usage:** {convert_size(psutil.disk_usage('/').used)} of " \
+            f"{convert_size(psutil.disk_usage('/').total)} ({psutil.disk_usage('/').percent}%)\n" \
+            f"**Public IP:** {subprocess.run(['curl', '--silent', 'ifconfig.me'], capture_output=True).stdout.decode()}"
+    except (AttributeError, KeyError, subprocess.SubprocessError):
         txt = "‼️ Failed to get system info"
     app.edit_message_text(callback_query.from_user.id,
                           callback_query.message.message_id,
