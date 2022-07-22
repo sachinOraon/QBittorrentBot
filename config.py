@@ -13,4 +13,10 @@ API_HASH = getenv("API-HASH")
 
 # Bot settings
 NOTIFY = True
-AUTHORIZED_IDS = [162301507]
+AUTHORIZED_IDS = [12345]
+
+# Aria settings
+ARIA_IP = getenv("ARIA_IP")
+ARIA_PORT = getenv("ARIA_PORT")
+ARIA_RPC_TOKEN = getenv("ARIA_RPC_TOKEN")
+ARIA_DOWNLOAD_PATH = "/mnt/downloads"

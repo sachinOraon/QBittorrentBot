@@ -23,3 +23,6 @@ torrentInfo_filter = filters.create(lambda _, __, query: query.data.startswith("
 select_category_filter = filters.create(lambda _, __, query: query.data.startswith("select_category"))
 ngrok_info_filter = filters.create(lambda _, __, query: query.data.startswith("ngrok_info"))
 system_info_filter = filters.create(lambda _, __, query: query.data.startswith("system_info"))
+extract_file_filter = filters.create(lambda _, __, query: query.data.startswith("extract_file"))
+aria_ref_filter = filters.create(lambda _, __, query: query.data.startswith("aria-ref"))
+aria_can_filter = filters.create(lambda _, __, query: query.data.startswith("aria-can"))

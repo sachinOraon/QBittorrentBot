@@ -16,14 +16,60 @@ import psutil
 import custom_filters
 import qbittorrent_control
 from check_finished_torrents import checkTorrents
-from config import API_ID, API_HASH, TG_TOKEN, AUTHORIZED_IDS
+from config import API_ID, API_HASH, TG_TOKEN, AUTHORIZED_IDS, ARIA_IP, ARIA_PORT, ARIA_RPC_TOKEN, ARIA_DOWNLOAD_PATH
 import db_management
+import aria2p
+import patoolib
+from aria2p import API
 
 logger = Logger(__name__)
 app = Client("qbittorrent_bot", api_id=API_ID, api_hash=API_HASH, bot_token=TG_TOKEN)
 ngrok_api_url = ["http://127.0.0.1:4040/api/tunnels", "http://127.0.0.1:4050/api/tunnels"]
 spammer = checkTorrents(app)
 spammer.start()
+aria = None
+if ARIA_IP is None or ARIA_PORT is None:
+    logger.error("aria is not configured")
+else:
+    try:
+        aria = aria2p.API(
+            aria2p.Client(
+                host=f"http://{ARIA_IP}",
+                port=ARIA_PORT,
+                secret=ARIA_RPC_TOKEN
+            )
+        )
+
+        def aria_onDownloadComplete(api: API, gid: str = None):
+            logger.info("aria download complete event triggered")
+            if gid is None:
+                logger.error("aria gid is None")
+            else:
+                try:
+                    logger.info(f"fetching aria info for: {gid}")
+                    down = aria.get_download(gid)
+                    name = down.name
+                    filepath = f"{ARIA_DOWNLOAD_PATH}/{name}"
+                    logger.info(f"starting extraction of: {name}")
+                    patoolib.extract_archive(archive=filepath, outdir=ARIA_DOWNLOAD_PATH, verbosity=-1,
+                                             interactive=False)
+                    logger.info(f"extraction completed: {name}")
+                    logger.info(f"removing archive file: {filepath}")
+                    aria.remove(downloads=[down], files=True, clean=True, force=True)
+                    if os.path.exists(path=filepath):
+                        os.remove(path=filepath)
+                    if os.path.exists(path=filepath):
+                        logger.error(f"failed to remove: {name}")
+                    else:
+                        logger.info(f"file deleted: {name}")
+                    for id in AUTHORIZED_IDS:
+                        app.send_message(chat_id=id, text=f"🗂 <code>{name}</code> <b>extracted</b>", parse_mode="html")
+                except Exception as e:
+                    logger.error(f"error in download complete event: {str(e)}")
+
+        aria.listen_to_notifications(threaded=True, on_download_complete=aria_onDownloadComplete)
+    except Exception:
+        logger.error(f"Failed to initialize aria: {ARIA_IP}:{ARIA_PORT}:{ARIA_RPC_TOKEN}")
 
 
 def get_ngrok_info():
@@ -91,7 +137,8 @@ def send_menu(message, chat) -> None:
                 InlineKeyboardButton("🗑 Remove Category", "select_category#remove_category")],
                [InlineKeyboardButton("📝 Modify Category", "select_category#modify_category"),
                 InlineKeyboardButton("🚦 System Info", "system_info")],
-               [InlineKeyboardButton("🚀 Ngrok Info", "ngrok_info")]]
+               [InlineKeyboardButton("🧬 Download & Extract", "extract_file"),
+                InlineKeyboardButton("🚀 Ngrok Info", "ngrok_info")]]
 
     try:
         app.edit_message_text(chat, message, text="Qbittorrent Control", reply_markup=InlineKeyboardMarkup(buttons))
@@ -585,6 +632,47 @@ def on_text(client: Client, message: Message) -> None:
         else:
             message.reply_text("This is not a torrent file! Retry")
 
+    elif "extract" in action:
+        if message.text.startswith("http"):
+            logger.info(f"checking url: {message.text}")
+            try:
+                resp = requests.get(url=message.text, headers={"range": "bytes=0-512"})
+                if resp.ok and resp.headers['content-type'].startswith("application"):
+                    logger.info("starting download using aria")
+                    aria_download = aria.add_uris(uris=[message.text])
+                    if aria_download.error_code:
+                        message.reply_text(f"❗ Error while starting download: {aria_download.error_message} ⚠")
+                    else:
+                        logger.info(f"download started: GID: {aria_download.gid}")
+                        needed = aria.get_download(aria_download.gid).total_length * 2
+                        avail = psutil.disk_usage('/').free
+                        if avail < needed:
+                            logger.error("stopping download due to less space")
+                            for rem in aria.remove(downloads=[aria.get_download(aria_download.gid)], files=True, clean=True):
+                                logger.info(f"GID: {aria_download.gid} [{rem.message} {rem.code}]")
+                            message.reply_text(f"⚠ <b>Download stopped due to lack of space</b> ❌\n\n🗂 Filename: <code>{aria.get_download(aria_download.gid).name}</code>\n\n📀 Size: {convert_size(aria.get_download(aria_download.gid).total_length)}\n\n💾 Expected: {convert_size(needed)}\n📦 Available: {convert_size(avail)}", parse_mode="html")
+                        else:
+                            msg = f"🗂 Filename: <code>{aria_download.name}</code>\n\n🚦 Status: {aria_download.status}\n\n📀 Size: {aria_download.total_length_string()}\n" \
+                                  f"📥 Downloaded: {aria_download.completed_length_string()} ({aria_download.progress_string()})\n\n" \
+                                  f"⚡ Speed: {aria_download.download_speed_string()}\n⏰ ETA: {aria_download.eta_string()}"
+                            buttons = [[InlineKeyboardButton("♻ Refresh", f"aria-ref#{aria_download.gid}"),
+                                        InlineKeyboardButton("❌ Cancel", f"aria-can#{aria_download.gid}")],
+                                       [InlineKeyboardButton("🔙 Menu", "menu")]]
+                            message.reply_text(text=msg, parse_mode="html", reply_markup=InlineKeyboardMarkup(buttons))
+                            db_management.write_support("None", message.from_user.id)
+                else:
+                    message.reply_text(f"⚠ Error connecting to given link or invalid file:{resp.reason}:{resp.status_code} ⁉")
+            except (ConnectionError, HTTPError):
+                logger.error(f"failed to validate url: {message.text}")
+                message.reply_text(f"Unable to validate the given link ❗")
+            except aria2p.client.ClientException as exp:
+                logger.error(f"error occurred in aria instance: {str(exp)}")
+                message.reply_text("Something went wrong with Aria ⁉")
+            finally:
+                resp.close()
+        else:
+            message.reply_text("Invalid download link given ‼")
+
     elif action == "category_name":
         db_management.write_support(f"category_dir#{message.text}", message.from_user.id)
         message.reply_text(f"now send me the path for the category {message.text}")
@@ -605,3 +693,65 @@ def on_text(client: Client, message: Message) -> None:
 
         else:
             message.reply_text("The path entered does not exist! Retry")
+
+
+@app.on_callback_query(filters=custom_filters.extract_file_filter)
+def extract_file_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"extract file cmd sent by: {callback_query.from_user.first_name}")
+    if aria is None:
+        app.answer_callback_query(callback_query.id, "Aria is not configured properly ‼")
+    else:
+        logger.info("fetching the aria downloads")
+        try:
+            if len(aria.get_downloads()) > 0:
+                file_btns = []
+                for down in aria.get_downloads():
+                    btn = [InlineKeyboardButton(f"{down.name}", f"aria-ref#{down.gid}")]
+                    file_btns.append(btn)
+                file_btns.append([InlineKeyboardButton("🔙 Menu", "menu")])
+                app.edit_message_reply_markup(callback_query.from_user.id, callback_query.message.message_id,
+                                              InlineKeyboardMarkup(file_btns))
+            else:
+                logger.info("no aria downloads found")
+                app.answer_callback_query(callback_query.id, "Send a download link 🔗")
+                db_management.write_support(f"{callback_query.data}", callback_query.from_user.id)
+        except Exception as e:
+            logger.error(f"failed to process cmd: {str(e)}")
+            app.answer_callback_query(callback_query.id, "⚠ Some error occurred ❗")
+
+
+@app.on_callback_query(filters=custom_filters.aria_ref_filter)
+def aria_ref_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"aria download refresh cmd by: {callback_query.from_user.first_name}")
+    try:
+        aria_gid = callback_query.data.split('#')[1]
+        logger.info(f"getting aria download info for: {aria_gid}")
+        down = aria.get_download(aria_gid)
+        msg = f"🗂 Filename: <code>{down.name}</code>\n\n🚦 Status: {down.status}\n\n📀 Size: {down.total_length_string()}\n"\
+            f"📥 Downloaded: {down.completed_length_string()} ({down.progress_string()})\n\n"\
+            f"⚡ Speed: {down.download_speed_string()}\n⏰ ETA: {down.eta_string()}"
+        buttons = [[InlineKeyboardButton("♻ Refresh", f"aria-ref#{aria_gid}"),
+                    InlineKeyboardButton("❌ Cancel", f"aria-can#{aria_gid}")],
+                   [InlineKeyboardButton("🔙 Menu", "menu")]]
+        app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id, text=msg, parse_mode="html",
+                              reply_markup=InlineKeyboardMarkup(buttons))
+        logger.info(f"download info sent to: {callback_query.from_user.first_name}")
+    except Exception as e:
+        logger.error(f"failed to process refresh cmd: {str(e)}")
+        app.answer_callback_query(callback_query.id, "⚠ Failed to refresh")
+
+
+@app.on_callback_query(filters=custom_filters.aria_can_filter)
+def aria_can_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"aria download cancel cmd sent by: {callback_query.from_user.first_name}")
+    try:
+        aria_gid = callback_query.data.split('#')[1]
+        logger.info(f"getting aria download info for: {aria_gid}")
+        filename = aria.get_download(aria_gid).name
+        remove = aria.remove(downloads=[aria.get_download(aria_gid)], force=True, files=True, clean=True)
+        logger.info(f"download cancelled for: {filename}")
+        app.answer_callback_query(callback_query.id, f"❌ Download cancelled for: {filename}")
+        send_menu(callback_query.message.message_id, callback_query.from_user.id)
+    except Exception as e:
+        logger.error(f"failed to process cancel cmd: {str(e)}")
+        app.answer_callback_query(callback_query.id, "⚠ Failed to cancel downloading")

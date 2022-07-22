@@ -13,3 +13,5 @@ six==1.16.0
 TgCrypto==1.2.2
 urllib3==1.26.6
 logging2
+aria2p
+patool
