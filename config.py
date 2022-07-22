@@ -12,8 +12,8 @@ API_ID = getenv("API-ID")
 API_HASH = getenv("API-HASH")
 
 # Bot settings
-NOTIFY = True
-AUTHORIZED_IDS = [12345]
+NOTIFY = False
+AUTHORIZED_IDS = []
 
 # Aria settings
 ARIA_IP = getenv("ARIA_IP")
