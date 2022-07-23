@@ -51,19 +51,22 @@ else:
                     name = down.name
                     filepath = f"{ARIA_DOWNLOAD_PATH}/{name}"
                     logger.info(f"starting extraction of: {name}")
-                    patoolib.extract_archive(archive=filepath, outdir=ARIA_DOWNLOAD_PATH, verbosity=-1,
-                                             interactive=False)
-                    logger.info(f"extraction completed: {name}")
-                    logger.info(f"removing archive file: {filepath}")
-                    aria.remove(downloads=[down], files=True, clean=True, force=True)
-                    if os.path.exists(path=filepath):
-                        os.remove(path=filepath)
-                    if os.path.exists(path=filepath):
-                        logger.error(f"failed to remove: {name}")
+                    patoolib.extract_archive(archive=filepath, outdir=ARIA_DOWNLOAD_PATH, verbosity=-1, interactive=False, program="/usr/bin/7z")
+                    if os.path.isdir(f"{ARIA_DOWNLOAD_PATH}/{os.path.splitext(name)[0]}"):
+                        logger.info(f"extraction completed: {name}")
+                        aria.remove(downloads=[down], files=True, clean=True, force=True)
+                        if os.path.exists(path=filepath):
+                            os.remove(path=filepath)
+                        if os.path.exists(path=filepath):
+                            logger.error(f"failed to remove: {name}")
+                        else:
+                            logger.info(f"file deleted: {name}")
+                        text = f"🗂 <code>{name}</code> <b>extracted</b> ✔️"
                     else:
-                        logger.info(f"file deleted: {name}")
+                        text = f"⚠ <b>Failed to extract</b> 🗂 <code>{name}</code>"
+                        logger.error(f"failed to extract: {name}")
                     for id in AUTHORIZED_IDS:
-                        app.send_message(chat_id=id, text=f"🗂 <code>{name}</code> <b>extracted</b>", parse_mode="html")
+                        app.send_message(chat_id=id, text=text, parse_mode="html")
                 except Exception as e:
                     logger.error(f"error in download complete event: {str(e)}")
 
