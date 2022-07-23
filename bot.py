@@ -65,10 +65,11 @@ else:
                     else:
                         text = f"⚠ <b>Failed to extract</b> 🗂 <code>{name}</code>"
                         logger.error(f"failed to extract: {name}")
-                    for id in AUTHORIZED_IDS:
-                        app.send_message(chat_id=id, text=text, parse_mode="html")
                 except Exception as e:
                     logger.error(f"error in download complete event: {str(e)}")
+                    text = f"⚠ Error in download complete event: <code>{str(e)}</code> ⁉️"
+                for id in AUTHORIZED_IDS:
+                    app.send_message(chat_id=id, text=text, parse_mode="html")
 
         aria.listen_to_notifications(threaded=True, on_download_complete=aria_onDownloadComplete)
     except Exception:
