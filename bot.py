@@ -50,9 +50,15 @@ else:
                     down = aria.get_download(gid)
                     name = down.name
                     filepath = f"{ARIA_DOWNLOAD_PATH}/{name}"
+                    bef_ext = len(os.listdir(ARIA_DOWNLOAD_PATH))
                     logger.info(f"starting extraction of: {name}")
-                    patoolib.extract_archive(archive=filepath, outdir=ARIA_DOWNLOAD_PATH, verbosity=-1, interactive=False, program="/usr/bin/7z")
-                    if os.path.isdir(f"{ARIA_DOWNLOAD_PATH}/{os.path.splitext(name)[0]}"):
+                    try:
+                        patoolib.extract_archive(archive=filepath, outdir=ARIA_DOWNLOAD_PATH, verbosity=-1, interactive=False, program="/usr/bin/7z")
+                    except patoolib.util.PatoolError as e:
+                        logger.error(f"failed to extract: {str(e)}, Retrying")
+                        patoolib.extract_archive(archive=filepath, outdir=ARIA_DOWNLOAD_PATH, verbosity=-1, interactive=False)
+                    aft_ext = len(os.listdir(ARIA_DOWNLOAD_PATH))
+                    if aft_ext > bef_ext:
                         logger.info(f"extraction completed: {name}")
                         aria.remove(downloads=[down], files=True, clean=True, force=True)
                         if os.path.exists(path=filepath):
@@ -77,9 +83,9 @@ else:
 
 
 def get_ngrok_info():
-    max_retry = 10
+    max_retry = 5
     retry_count = 0
-    sleep_sec = 20
+    sleep_sec = 5
     status_count = 0
     msg = ""
     while status_count != len(ngrok_api_url) and retry_count <= max_retry:
@@ -99,7 +105,7 @@ def get_ngrok_info():
                         msg += f'⚡ <b>URL:</b> {tunnel["public_url"]}\n\n'
                 response.close()
         retry_count += 1
-        if status_count == len(ngrok_api_url):
+        if status_count > 0:
             break
     if retry_count > max_retry:
         logger.error("failed to get ngrok info on startup")
@@ -273,9 +279,7 @@ def ngrok_info_callback(client: Client, callback_query: CallbackQuery) -> None:
                     msg += f'🚀 <b>Name:</b> <code>{tunnel["name"]}</code>\n'
                     msg += f'⚡ <b>URL:</b> {tunnel["public_url"]}\n\n'
             response.close()
-    if status_count == len(ngrok_api_url):
-        pass
-    else:
+    if status_count == 0:
         msg = '‼️ <b>Failed to get api response</b>'
     app.edit_message_text(callback_query.from_user.id,
                           callback_query.message.message_id,
@@ -712,7 +716,7 @@ def extract_file_callback(client: Client, callback_query: CallbackQuery) -> None
                 for down in aria.get_downloads():
                     btn = [InlineKeyboardButton(f"{down.name}", f"aria-ref#{down.gid}")]
                     file_btns.append(btn)
-                file_btns.append([InlineKeyboardButton("🔙 Menu", "menu")])
+                file_btns.append([InlineKeyboardButton("➕ Add", "aria-add"), InlineKeyboardButton("🔙 Menu", "menu")])
                 app.edit_message_reply_markup(callback_query.from_user.id, callback_query.message.message_id,
                                               InlineKeyboardMarkup(file_btns))
             else:
@@ -734,9 +738,12 @@ def aria_ref_callback(client: Client, callback_query: CallbackQuery) -> None:
         msg = f"🗂 Filename: <code>{down.name}</code>\n\n🚦 Status: {down.status}\n\n📀 Size: {down.total_length_string()}\n"\
             f"📥 Downloaded: {down.completed_length_string()} ({down.progress_string()})\n\n"\
             f"⚡ Speed: {down.download_speed_string()}\n⏰ ETA: {down.eta_string()}"
+        if "error" in down.status:
+            other_btn = [InlineKeyboardButton("🚀 Retry", f"aria-ret#{aria_gid}"), InlineKeyboardButton("🔙 Menu", "menu")]
+        else:
+            other_btn = [InlineKeyboardButton("🔙 Menu", "menu")]
         buttons = [[InlineKeyboardButton("♻ Refresh", f"aria-ref#{aria_gid}"),
-                    InlineKeyboardButton("❌ Cancel", f"aria-can#{aria_gid}")],
-                   [InlineKeyboardButton("🔙 Menu", "menu")]]
+                    InlineKeyboardButton("❌ Cancel", f"aria-can#{aria_gid}")], other_btn]
         app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id, text=msg, parse_mode="html",
                               reply_markup=InlineKeyboardMarkup(buttons))
         logger.info(f"download info sent to: {callback_query.from_user.first_name}")
@@ -759,3 +766,25 @@ def aria_can_callback(client: Client, callback_query: CallbackQuery) -> None:
     except Exception as e:
         logger.error(f"failed to process cancel cmd: {str(e)}")
         app.answer_callback_query(callback_query.id, "⚠ Failed to cancel downloading")
+
+
+@app.on_callback_query(filters=custom_filters.aria_add_filter)
+def aria_add_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"aria download add cmd sent by: {callback_query.from_user.first_name}")
+    app.answer_callback_query(callback_query.id, "Send a download link 🔗")
+    db_management.write_support("extract", callback_query.from_user.id)
+
+
+@app.on_callback_query(filters=custom_filters.aria_ret_filter)
+def aria_ret_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"aria retry cmd sent by: {callback_query.from_user.first_name}")
+    try:
+        aria_gid = callback_query.data.split('#')[1]
+        filename = aria.get_download(aria_gid).name
+        logger.info(f"retrying download: {filename}")
+        aria.retry_downloads(downloads=[aria.get_download(aria_gid)], clean=False)
+        app.answer_callback_query(callback_query.id, f"⚡ Retry download: {filename}")
+        send_menu(callback_query.message.message_id, callback_query.from_user.id)
+    except Exception as e:
+        logger.error(f"failed to retry download: {str(e)}")
+        app.answer_callback_query(callback_query.id, f"❗ Unable to retry download")

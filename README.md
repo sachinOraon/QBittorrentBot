@@ -19,7 +19,9 @@ You can also pause, resume, delete and add/remove and modify categories.
 3. #### Run the container
    3.1 Edit the file `config.py` and insert your Telegram user id in `AUTHORIZED_IDS`
 
-   3.2 Finally deploy the bot using:
+   3.2 Edit the file `bot.py` and insert the local ngrok api urls in `ngrok_api_url`
+
+   3.3 Finally deploy the bot using:
 ```
 sudo docker run -d \
     --name=qbot \
