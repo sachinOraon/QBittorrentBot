@@ -242,6 +242,7 @@ def stats_command(client: Client, callback_query: CallbackQuery) -> None:
                     cpu_temp += f"{t.current}°C  "
         else:
             cpu_temp += "NA"
+        ip_cmd = "hostname -I | cut -d\' \' -f1"
         txt = f"**============SYSTEM============**\n" \
             f"**CPU Usage:** {psutil.cpu_percent(interval=None)}%\n" \
             f"**CPU Freq:** {ceil(psutil.cpu_freq(percpu=False).current)} MHz\n" \
@@ -251,9 +252,10 @@ def stats_command(client: Client, callback_query: CallbackQuery) -> None:
             f"{convert_size(psutil.virtual_memory().total)} ({psutil.virtual_memory().percent}%)\n" \
             f"**Disks usage:** {convert_size(psutil.disk_usage('/').used)} of " \
             f"{convert_size(psutil.disk_usage('/').total)} ({psutil.disk_usage('/').percent}%)\n" \
+            f"**Local IP:** {subprocess.check_output(ip_cmd, shell=True).decode()}" \
             f"**Public IP:** {subprocess.run(['curl', '--silent', 'ifconfig.me'], capture_output=True).stdout.decode()}\n" \
             f"**Network Usage:** 🔻 {convert_size(psutil.net_io_counters().bytes_recv)} 🔺 {convert_size(psutil.net_io_counters().bytes_sent)}"
-    except (AttributeError, KeyError, subprocess.SubprocessError):
+    except (AttributeError, KeyError, subprocess.SubprocessError, subprocess.CalledProcessError):
         txt = "‼️ Failed to get system info"
     app.edit_message_text(callback_query.from_user.id,
                           callback_query.message.message_id,
@@ -758,6 +760,8 @@ def aria_ref_callback(client: Client, callback_query: CallbackQuery) -> None:
             other_btn = [InlineKeyboardButton("🚀 Retry", f"aria-ret#{aria_gid}"), InlineKeyboardButton("🔙 Menu", "menu")]
         elif "paused" in down.status:
             other_btn = [InlineKeyboardButton("▶ Resume", f"aria-res#{aria_gid}"), InlineKeyboardButton("🔙 Menu", "menu")]
+        elif "active" in down.status:
+            other_btn = [InlineKeyboardButton("⏸ Pause", f"aria-pau#{aria_gid}"), InlineKeyboardButton("🔙 Menu", "menu")]
         else:
             other_btn = [InlineKeyboardButton("🔙 Menu", "menu")]
         buttons = [[InlineKeyboardButton("♻ Refresh", f"aria-ref#{aria_gid}"),
