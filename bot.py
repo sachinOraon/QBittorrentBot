@@ -4,7 +4,7 @@ import time
 import tempfile
 import requests
 import subprocess
-from math import log, floor
+from math import log, floor, ceil
 from requests import ConnectionError
 from requests import HTTPError
 from pyrogram import Client, filters
@@ -228,10 +228,25 @@ def stats_command(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"/stats: {callback_query.from_user.first_name}")
     button = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", "menu")]])
     try:
+        temp = psutil.sensors_temperatures()
+        cpu_temp = ""
+        if len(temp) != 0:
+            if "coretemp" in temp:
+                key = "coretemp"
+            elif "cpu_thermal" in temp:
+                key = "cpu_thermal"
+            else:
+                key = None
+            if key:
+                for t in temp[key]:
+                    cpu_temp += f"{t.current}°C  "
+        else:
+            cpu_temp += "NA"
         txt = f"**============SYSTEM============**\n" \
             f"**CPU Usage:** {psutil.cpu_percent(interval=None)}%\n" \
-            f"**CPU Freq:** {psutil.cpu_freq(percpu=False).current} MHz\n" \
-            f"**CPU Temp:** {psutil.sensors_temperatures()['cpu_thermal'][0].current}°C\n" \
+            f"**CPU Freq:** {ceil(psutil.cpu_freq(percpu=False).current)} MHz\n" \
+            f"**CPU Cores:** {psutil.cpu_count(logical=True)}\n" \
+            f"**CPU Temp:** {cpu_temp}\n" \
             f"**Free Memory:** {convert_size(psutil.virtual_memory().available)} of " \
             f"{convert_size(psutil.virtual_memory().total)} ({psutil.virtual_memory().percent}%)\n" \
             f"**Disks usage:** {convert_size(psutil.disk_usage('/').used)} of " \
@@ -665,7 +680,8 @@ def on_text(client: Client, message: Message) -> None:
                                   f"⚡ Speed: {aria_download.download_speed_string()}\n⏰ ETA: {aria_download.eta_string()}"
                             buttons = [[InlineKeyboardButton("♻ Refresh", f"aria-ref#{aria_download.gid}"),
                                         InlineKeyboardButton("❌ Cancel", f"aria-can#{aria_download.gid}")],
-                                       [InlineKeyboardButton("🔙 Menu", "menu")]]
+                                       [InlineKeyboardButton("⏸ Pause", f"aria-pau#{aria_download.gid}"),
+                                        InlineKeyboardButton("🔙 Menu", "menu")]]
                             message.reply_text(text=msg, parse_mode="html", reply_markup=InlineKeyboardMarkup(buttons))
                             db_management.write_support("None", message.from_user.id)
                 else:
@@ -740,6 +756,8 @@ def aria_ref_callback(client: Client, callback_query: CallbackQuery) -> None:
             f"⚡ Speed: {down.download_speed_string()}\n⏰ ETA: {down.eta_string()}"
         if "error" in down.status:
             other_btn = [InlineKeyboardButton("🚀 Retry", f"aria-ret#{aria_gid}"), InlineKeyboardButton("🔙 Menu", "menu")]
+        elif "paused" in down.status:
+            other_btn = [InlineKeyboardButton("▶ Resume", f"aria-res#{aria_gid}"), InlineKeyboardButton("🔙 Menu", "menu")]
         else:
             other_btn = [InlineKeyboardButton("🔙 Menu", "menu")]
         buttons = [[InlineKeyboardButton("♻ Refresh", f"aria-ref#{aria_gid}"),
@@ -788,3 +806,33 @@ def aria_ret_callback(client: Client, callback_query: CallbackQuery) -> None:
     except Exception as e:
         logger.error(f"failed to retry download: {str(e)}")
         app.answer_callback_query(callback_query.id, f"❗ Unable to retry download")
+
+
+@app.on_callback_query(filters=custom_filters.aria_pau_filter)
+def aria_pau_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"aria pause cmd sent by: {callback_query.from_user.first_name}")
+    try:
+        aria_gid = callback_query.data.split('#')[1]
+        filename = aria.get_download(aria_gid).name
+        logger.info(f"pausing download: {filename}")
+        aria.pause(downloads=[aria.get_download(aria_gid)], force=True)
+        app.answer_callback_query(callback_query.id, f"⏸ Paused: {filename}")
+        send_menu(callback_query.message.message_id, callback_query.from_user.id)
+    except Exception as e:
+        logger.error(f"failed to pause download: {str(e)}")
+        app.answer_callback_query(callback_query.id, f"❗ Unable to pause download")
+
+
+@app.on_callback_query(filters=custom_filters.aria_res_filter)
+def aria_res_callback(client: Client, callback_query: CallbackQuery) -> None:
+    logger.info(f"aria resume cmd sent by: {callback_query.from_user.first_name}")
+    try:
+        aria_gid = callback_query.data.split('#')[1]
+        filename = aria.get_download(aria_gid).name
+        logger.info(f"resuming download: {filename}")
+        aria.resume(downloads=[aria.get_download(aria_gid)])
+        app.answer_callback_query(callback_query.id, f"▶ Resumed: {filename}")
+        send_menu(callback_query.message.message_id, callback_query.from_user.id)
+    except Exception as e:
+        logger.error(f"failed to resume download: {str(e)}")
+        app.answer_callback_query(callback_query.id, f"❗ Unable to resume download")

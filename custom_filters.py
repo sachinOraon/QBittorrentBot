@@ -28,3 +28,5 @@ aria_ref_filter = filters.create(lambda _, __, query: query.data.startswith("ari
 aria_can_filter = filters.create(lambda _, __, query: query.data.startswith("aria-can"))
 aria_add_filter = filters.create(lambda _, __, query: query.data.startswith("aria-add"))
 aria_ret_filter = filters.create(lambda _, __, query: query.data.startswith("aria-ret"))
+aria_pau_filter = filters.create(lambda _, __, query: query.data.startswith("aria-pau"))
+aria_res_filter = filters.create(lambda _, __, query: query.data.startswith("aria-res"))

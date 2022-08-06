@@ -27,6 +27,7 @@ sudo docker run -d \
     --name=qbot \
     --restart=unless-stopped \
     --net=host \
+    -u 0:0 \
     -v /path/to/QBittorrentBot:/usr/src/app \
     -v /path/to/aria/download/dir:/mnt/downloads \
     -e qbIp=127.0.0.1 \
