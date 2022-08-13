@@ -249,12 +249,14 @@ def stats_command(client: Client, callback_query: CallbackQuery) -> None:
             f"**CPU Cores:** {psutil.cpu_count(logical=True)}\n" \
             f"**CPU Temp:** {cpu_temp}\n" \
             f"**Free Memory:** {convert_size(psutil.virtual_memory().available)} of " \
-            f"{convert_size(psutil.virtual_memory().total)} ({psutil.virtual_memory().percent}%)\n" \
+            f"{convert_size(psutil.virtual_memory().total)}\n" \
+            f"**Used Memory:** {convert_size(psutil.virtual_memory().used)} ({psutil.virtual_memory().percent}%)\n" \
             f"**Disks usage:** {convert_size(psutil.disk_usage('/').used)} of " \
             f"{convert_size(psutil.disk_usage('/').total)} ({psutil.disk_usage('/').percent}%)\n" \
             f"**Local IP:** {subprocess.check_output(ip_cmd, shell=True).decode()}" \
             f"**Public IP:** {subprocess.run(['curl', '--silent', 'ifconfig.me'], capture_output=True).stdout.decode()}\n" \
-            f"**Network Usage:** 🔻 {convert_size(psutil.net_io_counters().bytes_recv)} 🔺 {convert_size(psutil.net_io_counters().bytes_sent)}"
+            f"**Network Usage:** 🔻 {convert_size(psutil.net_io_counters().bytes_recv)} 🔺 {convert_size(psutil.net_io_counters().bytes_sent)}" \
+            f"**Uptime:** {subprocess.check_output('uptime --pretty', shell=True).decode()}"
     except (AttributeError, KeyError, subprocess.SubprocessError, subprocess.CalledProcessError):
         txt = "‼️ Failed to get system info"
     app.edit_message_text(callback_query.from_user.id,
@@ -662,7 +664,7 @@ def on_text(client: Client, message: Message) -> None:
             logger.info(f"checking url: {message.text}")
             try:
                 resp = requests.get(url=message.text, headers={"range": "bytes=0-512"})
-                if resp.ok and resp.headers['content-type'].startswith("application"):
+                if resp.ok:
                     logger.info("starting download using aria")
                     aria_download = aria.add_uris(uris=[message.text])
                     if aria_download.error_code:
@@ -670,7 +672,7 @@ def on_text(client: Client, message: Message) -> None:
                     else:
                         logger.info(f"download started: GID: {aria_download.gid}")
                         needed = aria.get_download(aria_download.gid).total_length * 2
-                        avail = psutil.disk_usage('/').free
+                        avail = psutil.disk_usage(ARIA_DOWNLOAD_PATH).free
                         if avail < needed:
                             logger.error("stopping download due to less space")
                             for rem in aria.remove(downloads=[aria.get_download(aria_download.gid)], files=True, clean=True):
