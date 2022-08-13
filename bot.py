@@ -45,6 +45,8 @@ else:
             if gid is None:
                 logger.error("aria gid is None")
             else:
+                archive_file = True
+                name = None
                 try:
                     logger.info(f"fetching aria info for: {gid}")
                     down = aria.get_download(gid)
@@ -55,6 +57,8 @@ else:
                     try:
                         patoolib.extract_archive(archive=filepath, outdir=ARIA_DOWNLOAD_PATH, verbosity=-1, interactive=False, program="/usr/bin/7z")
                     except patoolib.util.PatoolError as e:
+                        if "unknown archive format" in str(e):
+                            archive_file = False
                         logger.error(f"failed to extract: {str(e)}, Retrying")
                         patoolib.extract_archive(archive=filepath, outdir=ARIA_DOWNLOAD_PATH, verbosity=-1, interactive=False)
                     aft_ext = len(os.listdir(ARIA_DOWNLOAD_PATH))
@@ -73,7 +77,10 @@ else:
                         logger.error(f"failed to extract: {name}")
                 except Exception as e:
                     logger.error(f"error in download complete event: {str(e)}")
-                    text = f"⚠ Error in download complete event: <code>{str(e)}</code> ⁉️"
+                    if not archive_file and name is not None:
+                        text = f"🗂 <code>{name}</code> <b>downloaded</b> ✔️"
+                    else:
+                        text = f"⚠ Error in download complete event: <code>{str(e)}</code> ⁉️"
                 for id in AUTHORIZED_IDS:
                     app.send_message(chat_id=id, text=text, parse_mode="html")
 
@@ -255,10 +262,10 @@ def stats_command(client: Client, callback_query: CallbackQuery) -> None:
             f"{convert_size(psutil.disk_usage('/').total)} ({psutil.disk_usage('/').percent}%)\n" \
             f"**Local IP:** {subprocess.check_output(ip_cmd, shell=True).decode()}" \
             f"**Public IP:** {subprocess.run(['curl', '--silent', 'ifconfig.me'], capture_output=True).stdout.decode()}\n" \
-            f"**Network Usage:** 🔻 {convert_size(psutil.net_io_counters().bytes_recv)} 🔺 {convert_size(psutil.net_io_counters().bytes_sent)}" \
+            f"**Network Usage:** 🔻 {convert_size(psutil.net_io_counters().bytes_recv)} 🔺 {convert_size(psutil.net_io_counters().bytes_sent)}\n" \
             f"**Uptime:** {subprocess.check_output('uptime --pretty', shell=True).decode()}"
-    except (AttributeError, KeyError, subprocess.SubprocessError, subprocess.CalledProcessError):
-        txt = "‼️ Failed to get system info"
+    except (AttributeError, KeyError, subprocess.SubprocessError, subprocess.CalledProcessError) as e:
+        txt = f"‼️ Failed to get system info: {str(e)}"
     app.edit_message_text(callback_query.from_user.id,
                           callback_query.message.message_id,
                           txt,
