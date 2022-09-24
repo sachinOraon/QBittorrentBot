@@ -7,7 +7,7 @@ import subprocess
 from math import log, floor, ceil
 from requests import ConnectionError
 from requests import HTTPError
-from pyrogram import Client, filters
+from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, CallbackQuery
 from pyrogram.errors.exceptions import MessageIdInvalid
 from pyrogram.errors.exceptions.bad_request_400 import PeerIdInvalid, MessageNotModified
@@ -82,7 +82,7 @@ else:
                     else:
                         text = f"⚠ Error in download complete event: <code>{str(e)}</code> ⁉️"
                 for id in AUTHORIZED_IDS:
-                    app.send_message(chat_id=id, text=text, parse_mode="html")
+                    app.send_message(chat_id=id, text=text, parse_mode=enums.ParseMode.HTML)
 
         aria.listen_to_notifications(threaded=True, on_download_complete=aria_onDownloadComplete)
     except Exception:
@@ -119,7 +119,7 @@ def get_ngrok_info():
     else:
         for user_id in AUTHORIZED_IDS:
             try:
-                app.send_message(user_id, msg, parse_mode="html")
+                app.send_message(user_id, msg, parse_mode=enums.ParseMode.HTML)
             except PeerIdInvalid:
                 logger.error(f"Failed to send ngrok info to {user_id}")
 
@@ -172,7 +172,7 @@ def list_active_torrents(n, chat, message, callback, status_filter: str = None) 
         logger.error("Error in list_active_torrents")
         txt = "⚠️ <b>Some error occurred</b>"
         button = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", "menu")]])
-        app.edit_message_text(chat, message, txt, parse_mode="html", reply_markup=button)
+        app.edit_message_text(chat, message, txt, parse_mode=enums.ParseMode.HTML, reply_markup=button)
     else:
         def render_categories_buttons():
             return [
@@ -222,7 +222,7 @@ def start_command(client: Client, message: Message) -> None:
     logger.info(f"/start: {message.from_user.first_name}")
     """Start the bot."""
     if message.from_user.id in AUTHORIZED_IDS:
-        send_menu(message.message_id, message.chat.id)
+        send_menu(message.id, message.chat.id)
 
     else:
         button = InlineKeyboardMarkup([[InlineKeyboardButton("Github",
@@ -267,9 +267,9 @@ def stats_command(client: Client, callback_query: CallbackQuery) -> None:
     except (AttributeError, KeyError, subprocess.SubprocessError, subprocess.CalledProcessError) as e:
         txt = f"‼️ Failed to get system info: {str(e)}"
     app.edit_message_text(callback_query.from_user.id,
-                          callback_query.message.message_id,
+                          callback_query.message.id,
                           txt,
-                          parse_mode="markdown",
+                          parse_mode=enums.ParseMode.MARKDOWN,
                           reply_markup=button)
 
 
@@ -279,7 +279,7 @@ def add_category_callback(client: Client, callback_query: CallbackQuery) -> None
     db_management.write_support("category_name", callback_query.from_user.id)
     button = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", "menu")]])
     try:
-        app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id,
+        app.edit_message_text(callback_query.from_user.id, callback_query.message.id,
                               "Send the category name", reply_markup=button)
     except MessageIdInvalid:
         app.send_message(callback_query.from_user.id, "Send the category name", reply_markup=button)
@@ -308,9 +308,9 @@ def ngrok_info_callback(client: Client, callback_query: CallbackQuery) -> None:
     if status_count == 0:
         msg = '‼️ <b>Failed to get api response</b>'
     app.edit_message_text(callback_query.from_user.id,
-                          callback_query.message.message_id,
+                          callback_query.message.id,
                           msg,
-                          parse_mode="html",
+                          parse_mode=enums.ParseMode.HTML,
                           reply_markup=button)
 
 
@@ -327,7 +327,7 @@ def list_categories(client: Client, callback_query: CallbackQuery):
     else:
         if categories is None:
             buttons.append([InlineKeyboardButton("🔙 Menu", "menu")])
-            app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id,
+            app.edit_message_text(callback_query.from_user.id, callback_query.message.id,
                                   "There are no categories", reply_markup=InlineKeyboardMarkup(buttons))
             return
 
@@ -337,7 +337,7 @@ def list_categories(client: Client, callback_query: CallbackQuery):
         buttons.append([InlineKeyboardButton("🔙 Menu", "menu")])
 
         try:
-            app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id,
+            app.edit_message_text(callback_query.from_user.id, callback_query.message.id,
                                   "Choose a category:", reply_markup=InlineKeyboardMarkup(buttons))
         except MessageIdInvalid:
             app.send_message(callback_query.from_user.id, "Choose a category:", reply_markup=InlineKeyboardMarkup(buttons))
@@ -349,7 +349,7 @@ def remove_category_callback(client: Client, callback_query: CallbackQuery) -> N
     buttons = [[InlineKeyboardButton("🔙 Menu", "menu")]]
     try:
         qbittorrent_control.remove_category(data=callback_query.data.split("#")[1])
-        app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id,
+        app.edit_message_text(callback_query.from_user.id, callback_query.message.id,
                           f"The category {callback_query.data.split('#')[1]} has been removed",
                           reply_markup=InlineKeyboardMarkup(buttons))
     except Exception:
@@ -364,7 +364,7 @@ def modify_category_callback(client: Client, callback_query: CallbackQuery) -> N
     buttons = [[InlineKeyboardButton("🔙 Menu", "menu")]]
 
     db_management.write_support(f"category_dir_modify#{callback_query.data.split('#')[1]}", callback_query.from_user.id)
-    app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id,
+    app.edit_message_text(callback_query.from_user.id, callback_query.message.id,
                           f"Send new path for category {callback_query.data.split('#')[1]}",
                           reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -396,7 +396,7 @@ def category(client: Client, callback_query: CallbackQuery) -> None:
         buttons.append([InlineKeyboardButton("🔙 Menu", "menu")])
 
         try:
-            app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id,
+            app.edit_message_text(callback_query.from_user.id, callback_query.message.id,
                                   "Choose a category:", reply_markup=InlineKeyboardMarkup(buttons))
         except MessageIdInvalid:
             app.send_message(callback_query.from_user.id, "Choose a category:", reply_markup=InlineKeyboardMarkup(buttons))
@@ -405,13 +405,13 @@ def category(client: Client, callback_query: CallbackQuery) -> None:
 @app.on_callback_query(filters=custom_filters.menu_filter)
 def menu_callback(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"menu: {callback_query.from_user.first_name}")
-    send_menu(callback_query.message.message_id, callback_query.from_user.id)
+    send_menu(callback_query.message.id, callback_query.from_user.id)
 
 
 @app.on_callback_query(filters=custom_filters.list_filter)
 def list_callback(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"list: {callback_query.from_user.first_name}")
-    list_active_torrents(0, callback_query.from_user.id, callback_query.message.message_id,
+    list_active_torrents(0, callback_query.from_user.id, callback_query.message.id,
                          db_management.read_support(callback_query.from_user.id))
 
 
@@ -419,7 +419,7 @@ def list_callback(client: Client, callback_query: CallbackQuery) -> None:
 def list_by_status_callback(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"list by status: {callback_query.from_user.first_name}")
     status_filter = callback_query.data.split("#")[1]
-    list_active_torrents(0, callback_query.from_user.id, callback_query.message.message_id,
+    list_active_torrents(0, callback_query.from_user.id, callback_query.message.id,
                          db_management.read_support(callback_query.from_user.id), status_filter=status_filter)
 
 
@@ -465,12 +465,12 @@ def resumeall_callback(client: Client, callback_query: CallbackQuery) -> None:
 def pause_callback(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"pause: {callback_query.from_user.first_name}")
     if callback_query.data.find("#") == -1:
-        list_active_torrents(1, callback_query.from_user.id, callback_query.message.message_id, "pause")
+        list_active_torrents(1, callback_query.from_user.id, callback_query.message.id, "pause")
 
     else:
         try:
             qbittorrent_control.pause(id_torrent=int(callback_query.data.split("#")[1]))
-            send_menu(callback_query.message.message_id, callback_query.from_user.id)
+            send_menu(callback_query.message.id, callback_query.from_user.id)
         except Exception:
             logger.error("Error in pause_callback")
             txt = "⚠️ Some error occurred"
@@ -481,12 +481,12 @@ def pause_callback(client: Client, callback_query: CallbackQuery) -> None:
 def resume_callback(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"resume: {callback_query.from_user.first_name}")
     if callback_query.data.find("#") == -1:
-        list_active_torrents(1, callback_query.from_user.id, callback_query.message.message_id, "resume")
+        list_active_torrents(1, callback_query.from_user.id, callback_query.message.id, "resume")
 
     else:
         try:
             qbittorrent_control.resume(id_torrent=int(callback_query.data.split("#")[1]))
-            send_menu(callback_query.message.message_id, callback_query.from_user.id)
+            send_menu(callback_query.message.id, callback_query.from_user.id)
         except Exception:
             logger.error("Error in resume_callback")
             txt = "⚠️ Some error occurred"
@@ -497,7 +497,7 @@ def resume_callback(client: Client, callback_query: CallbackQuery) -> None:
 def delete_callback(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"delete: {callback_query.from_user.first_name}")
     if callback_query.data.find("#") == -1:
-        list_active_torrents(1, callback_query.from_user.id, callback_query.message.message_id, "delete_one")
+        list_active_torrents(1, callback_query.from_user.id, callback_query.message.id, "delete_one")
 
     else:
 
@@ -506,7 +506,7 @@ def delete_callback(client: Client, callback_query: CallbackQuery) -> None:
                    [InlineKeyboardButton("🔙 Menu", "menu")]]
 
         try:
-            app.edit_message_reply_markup(callback_query.from_user.id, callback_query.message.message_id,
+            app.edit_message_reply_markup(callback_query.from_user.id, callback_query.message.id,
                                       reply_markup=InlineKeyboardMarkup(buttons))
         except (MessageIdInvalid, MessageNotModified):
             logger.error("Error in delete_callback")
@@ -518,12 +518,12 @@ def delete_callback(client: Client, callback_query: CallbackQuery) -> None:
 def delete_no_data_callback(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"delete no data: {callback_query.from_user.first_name}")
     if callback_query.data.find("#") == -1:
-        list_active_torrents(1, callback_query.from_user.id, callback_query.message.message_id, "delete_one_no_data")
+        list_active_torrents(1, callback_query.from_user.id, callback_query.message.id, "delete_one_no_data")
 
     else:
         try:
             qbittorrent_control.delete_one_no_data(id_torrent=int(callback_query.data.split("#")[1]))
-            send_menu(callback_query.message.message_id, callback_query.from_user.id)
+            send_menu(callback_query.message.id, callback_query.from_user.id)
         except Exception:
             logger.error("Error in delete_no_data_callback")
             txt = "⚠️ Some error occurred"
@@ -534,12 +534,12 @@ def delete_no_data_callback(client: Client, callback_query: CallbackQuery) -> No
 def delete_with_data_callback(client: Client, callback_query: CallbackQuery) -> None:
     logger.info(f"delete with data: {callback_query.from_user.first_name}")
     if callback_query.data.find("#") == -1:
-        list_active_torrents(1, callback_query.from_user.id, callback_query.message.message_id, "delete_one_data")
+        list_active_torrents(1, callback_query.from_user.id, callback_query.message.id, "delete_one_data")
 
     else:
         try:
             qbittorrent_control.delete_one_data(id_torrent=int(callback_query.data.split("#")[1]))
-            send_menu(callback_query.message.message_id, callback_query.from_user.id)
+            send_menu(callback_query.message.id, callback_query.from_user.id)
         except Exception:
             logger.error("Error in delete_with_data_callback")
             txt = "⚠️ Some error occurred"
@@ -553,7 +553,7 @@ def delete_all_callback(client: Client, callback_query: CallbackQuery) -> None:
                [InlineKeyboardButton("🗑 Delete all torrents and data", "delete_all_data")],
                [InlineKeyboardButton("🔙 Menu", "menu")]]
     try:
-        app.edit_message_reply_markup(callback_query.from_user.id, callback_query.message.message_id,
+        app.edit_message_reply_markup(callback_query.from_user.id, callback_query.message.id,
                                   reply_markup=InlineKeyboardMarkup(buttons))
     except (MessageIdInvalid, MessageNotModified):
         logger.error("Error in delete_all_callback")
@@ -571,7 +571,7 @@ def delete_all_with_no_data_callback(client: Client, callback_query: CallbackQue
         logger.error("Error in delete_all_with_no_data_callback")
         txt = "⚠️ Some error occurred"
     app.answer_callback_query(callback_query.id, txt)
-    send_menu(callback_query.message.message_id, callback_query.from_user.id)
+    send_menu(callback_query.message.id, callback_query.from_user.id)
 
 
 @app.on_callback_query(filters=custom_filters.delete_all_data_filter)
@@ -584,7 +584,7 @@ def delete_all_with_data_callback(client: Client, callback_query: CallbackQuery)
         logger.error("Error in delete_all_with_data_callback")
         txt = "⚠️ Some error occurred"
     app.answer_callback_query(callback_query.id, txt)
-    send_menu(callback_query.message.message_id, callback_query.from_user.id)
+    send_menu(callback_query.message.id, callback_query.from_user.id)
 
 
 @app.on_callback_query(filters=custom_filters.torrentInfo_filter)
@@ -631,7 +631,7 @@ def torrent_info_callback(client: Client, callback_query: CallbackQuery) -> None
                    [InlineKeyboardButton("🗑 Delete", f"delete_one#{callback_query.data.split('#')[1]}")],
                    [InlineKeyboardButton("🔙 Menu", "menu")]]
 
-        app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id, text=text,
+        app.edit_message_text(callback_query.from_user.id, callback_query.message.id, text=text,
                               reply_markup=InlineKeyboardMarkup(buttons))
 
 
@@ -646,7 +646,7 @@ def on_text(client: Client, message: Message) -> None:
             category = db_management.read_support(message.from_user.id).split("#")[1]
             qbittorrent_control.add_magnet(magnet_link=magnet_link,
                                            category=category)
-            send_menu(message.message_id, message.from_user.id)
+            send_menu(message.id, message.from_user.id)
             db_management.write_support("None", message.from_user.id)
 
         else:
@@ -660,7 +660,7 @@ def on_text(client: Client, message: Message) -> None:
                 message.download(name)
                 qbittorrent_control.add_torrent(file_name=name,
                                                 category=category)
-            send_menu(message.message_id, message.from_user.id)
+            send_menu(message.id, message.from_user.id)
             db_management.write_support("None", message.from_user.id)
 
         else:
@@ -684,7 +684,7 @@ def on_text(client: Client, message: Message) -> None:
                             logger.error("stopping download due to less space")
                             for rem in aria.remove(downloads=[aria.get_download(aria_download.gid)], files=True, clean=True):
                                 logger.info(f"GID: {aria_download.gid} [{rem.message} {rem.code}]")
-                            message.reply_text(f"⚠ <b>Download stopped due to lack of space</b> ❌\n\n🗂 Filename: <code>{aria.get_download(aria_download.gid).name}</code>\n\n📀 Size: {convert_size(aria.get_download(aria_download.gid).total_length)}\n\n💾 Expected: {convert_size(needed)}\n📦 Available: {convert_size(avail)}", parse_mode="html")
+                            message.reply_text(f"⚠ <b>Download stopped due to lack of space</b> ❌\n\n🗂 Filename: <code>{aria.get_download(aria_download.gid).name}</code>\n\n📀 Size: {convert_size(aria.get_download(aria_download.gid).total_length)}\n\n💾 Expected: {convert_size(needed)}\n📦 Available: {convert_size(avail)}", parse_mode=enums.ParseMode.HTML)
                         else:
                             msg = f"🗂 Filename: <code>{aria_download.name}</code>\n\n🚦 Status: {aria_download.status}\n\n📀 Size: {aria_download.total_length_string()}\n" \
                                   f"📥 Downloaded: {aria_download.completed_length_string()} ({aria_download.progress_string()})\n\n" \
@@ -693,7 +693,7 @@ def on_text(client: Client, message: Message) -> None:
                                         InlineKeyboardButton("❌ Cancel", f"aria-can#{aria_download.gid}")],
                                        [InlineKeyboardButton("⏸ Pause", f"aria-pau#{aria_download.gid}"),
                                         InlineKeyboardButton("🔙 Menu", "menu")]]
-                            message.reply_text(text=msg, parse_mode="html", reply_markup=InlineKeyboardMarkup(buttons))
+                            message.reply_text(text=msg, parse_mode=enums.ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
                             db_management.write_support("None", message.from_user.id)
                 else:
                     message.reply_text(f"⚠ Error connecting to given link or invalid file:{resp.reason}:{resp.status_code} ⁉")
@@ -703,7 +703,7 @@ def on_text(client: Client, message: Message) -> None:
             except aria2p.client.ClientException as exp:
                 logger.error(f"error occurred in aria instance: {str(exp)}")
                 message.reply_text("Something went wrong with Aria ⁉")
-            finally:
+            else:
                 resp.close()
         else:
             message.reply_text("Invalid download link given ‼")
@@ -719,12 +719,12 @@ def on_text(client: Client, message: Message) -> None:
             if "modify" in action:
                 qbittorrent_control.edit_category(name=name,
                                                   save_path=message.text)
-                send_menu(message.message_id, message.from_user.id)
+                send_menu(message.id, message.from_user.id)
                 return
 
             qbittorrent_control.create_category(name=name,
                                                 save_path=message.text)
-            send_menu(message.message_id, message.from_user.id)
+            send_menu(message.id, message.from_user.id)
 
         else:
             message.reply_text("The path entered does not exist! Retry")
@@ -744,7 +744,7 @@ def extract_file_callback(client: Client, callback_query: CallbackQuery) -> None
                     btn = [InlineKeyboardButton(f"{down.name}", f"aria-ref#{down.gid}")]
                     file_btns.append(btn)
                 file_btns.append([InlineKeyboardButton("➕ Add", "aria-add"), InlineKeyboardButton("🔙 Menu", "menu")])
-                app.edit_message_reply_markup(callback_query.from_user.id, callback_query.message.message_id,
+                app.edit_message_reply_markup(callback_query.from_user.id, callback_query.message.id,
                                               InlineKeyboardMarkup(file_btns))
             else:
                 logger.info("no aria downloads found")
@@ -775,8 +775,8 @@ def aria_ref_callback(client: Client, callback_query: CallbackQuery) -> None:
             other_btn = [InlineKeyboardButton("🔙 Menu", "menu")]
         buttons = [[InlineKeyboardButton("♻ Refresh", f"aria-ref#{aria_gid}"),
                     InlineKeyboardButton("❌ Cancel", f"aria-can#{aria_gid}")], other_btn]
-        app.edit_message_text(callback_query.from_user.id, callback_query.message.message_id, text=msg, parse_mode="html",
-                              reply_markup=InlineKeyboardMarkup(buttons))
+        app.edit_message_text(callback_query.from_user.id, callback_query.message.id, text=msg,
+                              parse_mode=enums.ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
         logger.info(f"download info sent to: {callback_query.from_user.first_name}")
     except Exception as e:
         logger.error(f"failed to process refresh cmd: {str(e)}")
@@ -793,7 +793,7 @@ def aria_can_callback(client: Client, callback_query: CallbackQuery) -> None:
         remove = aria.remove(downloads=[aria.get_download(aria_gid)], force=True, files=True, clean=True)
         logger.info(f"download cancelled for: {filename}")
         app.answer_callback_query(callback_query.id, f"❌ Download cancelled for: {filename}")
-        send_menu(callback_query.message.message_id, callback_query.from_user.id)
+        send_menu(callback_query.message.id, callback_query.from_user.id)
     except Exception as e:
         logger.error(f"failed to process cancel cmd: {str(e)}")
         app.answer_callback_query(callback_query.id, "⚠ Failed to cancel downloading")
@@ -815,7 +815,7 @@ def aria_ret_callback(client: Client, callback_query: CallbackQuery) -> None:
         logger.info(f"retrying download: {filename}")
         aria.retry_downloads(downloads=[aria.get_download(aria_gid)], clean=False)
         app.answer_callback_query(callback_query.id, f"⚡ Retry download: {filename}")
-        send_menu(callback_query.message.message_id, callback_query.from_user.id)
+        send_menu(callback_query.message.id, callback_query.from_user.id)
     except Exception as e:
         logger.error(f"failed to retry download: {str(e)}")
         app.answer_callback_query(callback_query.id, f"❗ Unable to retry download")
@@ -830,7 +830,7 @@ def aria_pau_callback(client: Client, callback_query: CallbackQuery) -> None:
         logger.info(f"pausing download: {filename}")
         aria.pause(downloads=[aria.get_download(aria_gid)], force=True)
         app.answer_callback_query(callback_query.id, f"⏸ Paused: {filename}")
-        send_menu(callback_query.message.message_id, callback_query.from_user.id)
+        send_menu(callback_query.message.id, callback_query.from_user.id)
     except Exception as e:
         logger.error(f"failed to pause download: {str(e)}")
         app.answer_callback_query(callback_query.id, f"❗ Unable to pause download")
@@ -845,7 +845,7 @@ def aria_res_callback(client: Client, callback_query: CallbackQuery) -> None:
         logger.info(f"resuming download: {filename}")
         aria.resume(downloads=[aria.get_download(aria_gid)])
         app.answer_callback_query(callback_query.id, f"▶ Resumed: {filename}")
-        send_menu(callback_query.message.message_id, callback_query.from_user.id)
+        send_menu(callback_query.message.id, callback_query.from_user.id)
     except Exception as e:
         logger.error(f"failed to resume download: {str(e)}")
         app.answer_callback_query(callback_query.id, f"❗ Unable to resume download")
