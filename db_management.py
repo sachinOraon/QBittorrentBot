@@ -7,7 +7,7 @@ db.bind(provider='sqlite', filename='database.sqlite', create_db=True)
 
 
 class Support(db.Entity):
-    id = PrimaryKey(int)
+    id = PrimaryKey(str)
     Action = Required(str, 255)
 
 
@@ -20,15 +20,15 @@ db.generate_mapping(create_tables=True)
 
 def read_support(chat_id):
     with db_session:
-        return Support[chat_id].Action
+        return Support[str(chat_id)].Action
 
 
 def write_support(status, chat_id):
     with db_session:
         try:
-            Support[chat_id].Action = status
+            Support[str(chat_id)].Action = status
         except ObjectNotFound:
-            Support(Action=status, id=chat_id)
+            Support(Action=status, id=str(chat_id))
 
 
 def write_completed_torrents(torrent_hash):

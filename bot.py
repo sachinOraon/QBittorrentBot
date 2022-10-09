@@ -2,6 +2,8 @@ import datetime
 import os
 import time
 import tempfile
+
+import pyrogram.errors.exceptions.bad_request_400
 import requests
 import subprocess
 from math import log, floor, ceil
@@ -601,30 +603,30 @@ def torrent_info_callback(client: Client, callback_query: CallbackQuery) -> None
         text = ""
 
         if progress == 0:
-            text += f"{torrent.name}\n[            ] " \
+            text += f"🗂 {torrent.name}\n⌈□□□□□□□□□□□□⌋ " \
                     f"{round(progress, 2)}% completed\n" \
-                    f"State: {torrent.state.capitalize()}\n" \
-                    f"Download Speed: {convert_size(torrent.dlspeed)}/s\n" \
-                    f"Size: {convert_size(torrent.size)}\nETA: " \
+                    f"🚦 State: {torrent.state.capitalize()}\n" \
+                    f"⚡ Download Speed: {convert_size(torrent.dlspeed)}/s\n" \
+                    f"📀 Size: {convert_size(torrent.size)}\n⏳ ETA: " \
                     f"{convert_eta(int(torrent.eta))}\n" \
-                    f"Category: {torrent.category}\n"
+                    f"🧲 Category: {torrent.category}\n"
 
         elif progress == 100:
-            text += f"{torrent.name}\n[completed] " \
+            text += f"🗂 {torrent.name}\n⌈completed⌋ " \
                     f"{round(progress, 2)}% completed\n" \
-                    f"State: {torrent.state.capitalize()}\n" \
-                    f"Upload Speed: {convert_size(torrent.upspeed)}/s\n" \
-                    f"Category: {torrent.category}\n"
+                    f"🚦 State: {torrent.state.capitalize()}\n" \
+                    f"📤 Upload Speed: {convert_size(torrent.upspeed)}/s\n" \
+                    f"🧲 Category: {torrent.category}\n"
 
         else:
-            text += f"{torrent.name}\n[{'=' * int(progress / 10)}" \
-                    f"{' ' * int(12 - (progress / 10))}]" \
+            text += f"🗂 {torrent.name}\n⌈{'■' * int(progress / 10)}" \
+                    f"{'□' * int(12 - (progress / 10))}⌋" \
                     f" {round(progress, 2)}% completed\n" \
-                    f"State: {torrent.state.capitalize()} \n" \
-                    f"Download Speed: {convert_size(torrent.dlspeed)}/s\n" \
-                    f"Size: {convert_size(torrent.size)}\nETA: " \
+                    f"🚦 State: {torrent.state.capitalize()} \n" \
+                    f"⚡ Download Speed: {convert_size(torrent.dlspeed)}/s\n" \
+                    f"📀 Size: {convert_size(torrent.size)}\n⏳ ETA: " \
                     f"{convert_eta(int(torrent.eta))}\n" \
-                    f"Category: {torrent.category}\n"
+                    f"🧲 Category: {torrent.category}\n"
 
         buttons = [[InlineKeyboardButton("⏸ Pause", f"pause#{callback_query.data.split('#')[1]}")],
                    [InlineKeyboardButton("▶️ Resume", f"resume#{callback_query.data.split('#')[1]}")],
@@ -778,6 +780,8 @@ def aria_ref_callback(client: Client, callback_query: CallbackQuery) -> None:
         app.edit_message_text(callback_query.from_user.id, callback_query.message.id, text=msg,
                               parse_mode=enums.ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
         logger.info(f"download info sent to: {callback_query.from_user.first_name}")
+    except pyrogram.errors.exceptions.bad_request_400.MessageNotModified:
+        pass
     except Exception as e:
         logger.error(f"failed to process refresh cmd: {str(e)}")
         app.answer_callback_query(callback_query.id, "⚠ Failed to refresh")
