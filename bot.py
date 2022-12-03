@@ -2,7 +2,6 @@ import datetime
 import os
 import time
 import tempfile
-
 import pyrogram.errors.exceptions.bad_request_400
 import requests
 import subprocess
@@ -17,18 +16,15 @@ from logging2 import Logger
 import psutil
 import custom_filters
 import qbittorrent_control
-from check_finished_torrents import checkTorrents
 from config import API_ID, API_HASH, TG_TOKEN, AUTHORIZED_IDS, ARIA_IP, ARIA_PORT, ARIA_RPC_TOKEN, ARIA_DOWNLOAD_PATH
 import db_management
 import aria2p
-import patoolib
+import docker
 from aria2p import API
 
 logger = Logger(__name__)
 app = Client("qbittorrent_bot", api_id=API_ID, api_hash=API_HASH, bot_token=TG_TOKEN)
 ngrok_api_url = ["http://127.0.0.1:4040/api/tunnels", "http://127.0.0.1:4050/api/tunnels"]
-spammer = checkTorrents(app)
-spammer.start()
 aria = None
 if ARIA_IP is None or ARIA_PORT is None:
     logger.error("aria is not configured")
@@ -41,60 +37,49 @@ else:
                 secret=ARIA_RPC_TOKEN
             )
         )
+        dclient = docker.DockerClient(base_url=f"unix://var/run/docker.sock")
 
         def aria_onDownloadComplete(api: API, gid: str = None):
             logger.info("aria download complete event triggered")
             if gid is None:
                 logger.error("aria gid is None")
             else:
-                archive_file = True
-                name = None
-                try:
-                    logger.info(f"fetching aria info for: {gid}")
-                    down = aria.get_download(gid)
-                    name = down.name
-                    filepath = f"{ARIA_DOWNLOAD_PATH}/{name}"
-                    bef_ext = len(os.listdir(ARIA_DOWNLOAD_PATH))
-                    logger.info(f"starting extraction of: {name}")
+                logger.info(f"fetching aria info for: {gid}")
+                down = aria.get_download(gid)
+                name = down.name
+                for uid in AUTHORIZED_IDS:
                     try:
-                        patoolib.extract_archive(archive=filepath, outdir=ARIA_DOWNLOAD_PATH, verbosity=-1, interactive=False, program="/usr/bin/7z")
-                    except patoolib.util.PatoolError as e:
-                        if "unknown archive format" in str(e):
-                            archive_file = False
-                        logger.error(f"failed to extract: {str(e)}, Retrying")
-                        patoolib.extract_archive(archive=filepath, outdir=ARIA_DOWNLOAD_PATH, verbosity=-1, interactive=False)
-                    aft_ext = len(os.listdir(ARIA_DOWNLOAD_PATH))
-                    if aft_ext > bef_ext:
-                        logger.info(f"extraction completed: {name}")
-                        aria.remove(downloads=[down], files=True, clean=True, force=True)
-                        if os.path.exists(path=filepath):
-                            os.remove(path=filepath)
-                        if os.path.exists(path=filepath):
-                            logger.error(f"failed to remove: {name}")
-                        else:
-                            logger.info(f"file deleted: {name}")
-                        text = f"🗂 <code>{name}</code> <b>extracted</b> ✔️"
-                    else:
-                        text = f"⚠ <b>Failed to extract</b> 🗂 <code>{name}</code>"
-                        logger.error(f"failed to extract: {name}")
-                except Exception as e:
-                    logger.error(f"error in download complete event: {str(e)}")
-                    if not archive_file and name is not None:
-                        text = f"🗂 <code>{name}</code> <b>downloaded</b> ✔️"
-                    else:
-                        text = f"⚠ Error in download complete event: <code>{str(e)}</code> ⁉️"
-                for id in AUTHORIZED_IDS:
-                    app.send_message(chat_id=id, text=text, parse_mode=enums.ParseMode.HTML)
+                        app.send_message(chat_id=uid, text=f"🗂 <code>{name}</code> <b>downloaded</b> ✔️", parse_mode=enums.ParseMode.HTML)
+                    except Exception:
+                        logger.error(f"failed to send notification to {uid}")
+                logger.info(f"starting file extraction for {name}")
+                try:
+                    dclient.containers.run(image="amarcu5/7zip", command=f"x '{name}'", remove=True, detach=False,
+                                           volumes={os.getenv("DOWNLOAD_PATH"): {'bind': ARIA_DOWNLOAD_PATH, 'mode': 'rw'}},
+                                           working_dir=ARIA_DOWNLOAD_PATH)
+                except docker.errors.ContainerError as err_msg:
+                    logger.error(f"failed to extract {name}: {str(err_msg)}")
+                except (docker.errors.APIError, docker.errors.ImageNotFound):
+                    logger.error("failed to initialize 7zip container")
+                else:
+                    logger.info(f"extraction completed, removing {name}")
+                    try:
+                        os.remove(path=f"{ARIA_DOWNLOAD_PATH}/{name}")
+                        aria.remove(downloads=[down], files=False, clean=True, force=True)
+                        for uid in AUTHORIZED_IDS:
+                            app.send_message(chat_id=uid, text=f"🗂 <code>{name}</code> <b>extracted</b> ✔️", parse_mode=enums.ParseMode.HTML)
+                    except Exception as e:
+                        logger.error(f"error in download complete event: {str(e)}")
 
         aria.listen_to_notifications(threaded=True, on_download_complete=aria_onDownloadComplete)
-    except Exception:
-        logger.error(f"Failed to initialize aria: {ARIA_IP}:{ARIA_PORT}:{ARIA_RPC_TOKEN}")
+    except Exception as err:
+        logger.error(f"Failed to initialize aria/docker: {str(err)}")
 
 
 def get_ngrok_info():
     max_retry = 5
     retry_count = 0
-    sleep_sec = 5
+    sleep_sec = 10
     status_count = 0
     msg = ""
     while status_count != len(ngrok_api_url) and retry_count <= max_retry:
@@ -122,7 +107,7 @@ def get_ngrok_info():
         for user_id in AUTHORIZED_IDS:
             try:
                 app.send_message(user_id, msg, parse_mode=enums.ParseMode.HTML)
-            except PeerIdInvalid:
+            except (PeerIdInvalid, ConnectionError):
                 logger.error(f"Failed to send ngrok info to {user_id}")
 
 

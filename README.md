@@ -30,6 +30,8 @@ sudo docker run -d \
     -u 0:0 \
     -v /path/to/QBittorrentBot:/usr/src/app \
     -v /path/to/aria/download/dir:/mnt/downloads \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -e DOWNLOAD_PATH=/path/to/aria/download/dir \
     -e qbIp=127.0.0.1 \
     -e qbPort=ENTER_PORT \
     -e qbUser=admin \

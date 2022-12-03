@@ -7,4 +7,4 @@ TgCrypto
 urllib3
 logging2
 aria2p
-patool
+docker==6.0.0
